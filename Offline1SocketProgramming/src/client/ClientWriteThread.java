@@ -1,7 +1,9 @@
 package client;
 
 import util.NetworkUtil;
-import util.fileTransmission.InitiateFileUpload;
+import util.fileDownload.InitiateOtherFileDownload;
+import util.fileDownload.InitiateSelfFileDownload;
+import util.fileUpload.InitiateFileUpload;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +36,7 @@ public class ClientWriteThread implements Runnable {
             }
 
             String command = tokens.get(0).trim();
+            // file -> upload, download -> self, otherDownload(for download only)
             if (command.equalsIgnoreCase("file")) {
                 if (tokens.get(1).trim().equalsIgnoreCase("upload")) {
                     String fileType = tokens.get(2).trim();
@@ -52,8 +55,26 @@ public class ClientWriteThread implements Runnable {
                         System.out.println("File does not exist");
                     }
 //
-                } else if (tokens.get(1).equalsIgnoreCase("download")) {
+                } else if (tokens.get(1).trim().equalsIgnoreCase("download")) {
+                    if(tokens.size() == 5) { // download self file
+                        String fileType = tokens.get(3).trim();
+                        String fileName = tokens.get(4).trim();
 
+                        try {
+                            networkUtil.write(new InitiateSelfFileDownload(fileName, fileType));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    } else {  // download others file
+                        String clientName = tokens.get(2).trim();
+                        String fileName = tokens.get(3).trim();
+
+                        try {
+                            networkUtil.write(new InitiateOtherFileDownload(clientName, fileName));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
         }

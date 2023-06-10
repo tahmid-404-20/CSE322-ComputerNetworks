@@ -1,21 +1,23 @@
 package client;
 
-import server.Server;
 import util.NetworkUtil;
-import util.fileTransmission.FileUploadChunk;
-import util.fileTransmission.FileUploadChunkACK;
-import util.fileTransmission.FileUploadPermission;
-import util.fileTransmission.FileUploadTermination;
+import util.fileDownload.FileDownloadChunk;
+import util.fileDownload.FileDownloadPermission;
+import util.fileDownload.FileDownloadTermination;
+import util.fileUpload.FileUploadChunk;
+import util.fileUpload.FileUploadChunkACK;
+import util.fileUpload.FileUploadPermission;
+import util.fileUpload.FileUploadTermination;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 
 public class ClientReadThread implements Runnable{
     NetworkUtil nu;
     Thread t;
+    CurrentFileDownloadInfo currentFileDownloadInfo;
 
     public ClientReadThread(NetworkUtil networkUtil) {
         this.nu = networkUtil;
@@ -38,6 +40,31 @@ public class ClientReadThread implements Runnable{
                     }
                 }
 
+                if(o instanceof FileDownloadPermission fDPerm) {
+                    if(fDPerm.text.equalsIgnoreCase("File Found. Download Starting")) {
+                        System.out.println("Starting download");
+                        currentFileDownloadInfo = new CurrentFileDownloadInfo(fDPerm.fileName);
+                    } else {
+                        System.out.println(fDPerm.text);
+                    }
+                }
+
+                if(o instanceof FileDownloadChunk fDChunk) {
+                    currentFileDownloadInfo.addChunk(fDChunk.bytes, fDChunk.chunkSize);
+                    System.out.println("Received chunk " + fDChunk.chunkSize + " bytes of file " + currentFileDownloadInfo.fileName +" from Server");
+                }
+
+                if(o instanceof FileDownloadTermination fDTerm) {
+
+                    if(fDTerm.text.equalsIgnoreCase("File Download Complete")) {
+                        System.out.println("Download complete");
+                        currentFileDownloadInfo.saveFile();
+                    } else {
+                        System.out.println(fDTerm.text);
+                    }
+                    currentFileDownloadInfo = null;
+                }
+
 
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
@@ -58,6 +85,7 @@ public class ClientReadThread implements Runnable{
         int chunksToBeSent = (int) (fileLength / chunkSize) + (fileLength % chunkSize == 0 ? 0 : 1);
         while ((bytesRead = fileInputStream.read(buffer)) != -1) {
             nu.write(new FileUploadChunk(fileId, buffer, bytesRead));
+            buffer = new byte[chunkSize];  // otherwise the last chunk will be sent multiple times
 
             nu.socket.setSoTimeout(Client.SOCKET_TIMEOUT);
             try {

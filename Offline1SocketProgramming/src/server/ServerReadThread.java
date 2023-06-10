@@ -1,20 +1,21 @@
 package server;
 
-import client.Client;
 import util.NetworkUtil;
-import util.fileTransmission.*;
+import util.fileDownload.*;
+import util.fileUpload.*;
 
 import java.io.*;
 import java.net.SocketException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Random;
 
-public class ServerReadThread implements Runnable{
+public class ServerReadThread implements Runnable {
     String clientName;
     NetworkUtil nu;
+    Thread t;
     private HashMap<String, ClientInfo> activeClientMap;
     private ServerBufferState serverBufferState;
     private CurrentFileUploadInfo currentFileUploadInfo;
-    Thread t;
 
     public ServerReadThread(String clientName, NetworkUtil nu, HashMap<String,
             ClientInfo> activeClientMap, ServerBufferState serverBufferState) {
@@ -31,11 +32,11 @@ public class ServerReadThread implements Runnable{
         while (true) {
             try {
                 Object o = nu.read();
-                if(o instanceof InitiateFileUpload initiateFileUpload) {
-                    if((serverBufferState.occupiedSize + initiateFileUpload.fileSize) <= Server.MAX_BUFFER_SIZE) {
+                if (o instanceof InitiateFileUpload initiateFileUpload) {
+                    if ((serverBufferState.occupiedSize + initiateFileUpload.fileSize) <= Server.MAX_BUFFER_SIZE) {
                         String filePath = "files/" + clientName + "/" + initiateFileUpload.fileType + "/" + initiateFileUpload.fileName;
-                        if(new File(filePath).exists()) {
-                            nu.write(new FileUploadPermission( "File Already Exists. Transfer Aborted"));
+                        if (new File(filePath).exists()) {
+                            nu.write(new FileUploadPermission("File Already Exists. Transfer Aborted"));
                             continue;
                         }
 
@@ -44,7 +45,7 @@ public class ServerReadThread implements Runnable{
 
                         // generate unique fileId
                         int fileId = random.nextInt(10000);
-                        while(serverBufferState.currentBuffer.containsKey(fileId)) {
+                        while (serverBufferState.currentBuffer.containsKey(fileId)) {
                             fileId = random.nextInt(10000);
                         }
 
@@ -56,7 +57,7 @@ public class ServerReadThread implements Runnable{
                     }
                 }
 
-                if(o instanceof FileUploadChunk fUChunk) {
+                if (o instanceof FileUploadChunk fUChunk) {
                     serverBufferState.addChunk(fUChunk.fileId, fUChunk.bytes, fUChunk.chunkSize);
                     System.out.println("Received chunk " + fUChunk.chunkSize + "bytes of file " + fUChunk.fileId + " from " + clientName);
                     // send ack
@@ -65,23 +66,23 @@ public class ServerReadThread implements Runnable{
                     nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
                 }
 
-                if(o instanceof FileUploadTermination fUTerm) {  // either file upload complete or socket timed out, currentFileInfo = null at end
-                    if(fUTerm.text.equalsIgnoreCase("File Upload Complete")) {
+                if (o instanceof FileUploadTermination fUTerm) {  // either file upload complete or socket timed out, currentFileInfo = null at end
+                    if (fUTerm.text.equalsIgnoreCase("File Upload Complete")) {
                         // check if file is complete
-                        if(serverBufferState.isFileComplete(fUTerm.fileId, currentFileUploadInfo.fileSize)) {
+                        if (serverBufferState.isFileComplete(fUTerm.fileId, currentFileUploadInfo.fileSize)) {
                             // write to fileOutputBuffer and send ok message
                             String filePath = "files/" + clientName + "/" + currentFileUploadInfo.fileType + "/" + currentFileUploadInfo.fileName;
                             FileOutputStream fos = new FileOutputStream(filePath);
                             serverBufferState.writeFileToOutputBuffer(fUTerm.fileId, fos);
-                            fos.close();
 
+                            System.out.println("Received file successfully from " + clientName);
                             nu.write(new FileUploadTermination(fUTerm.fileId, "Server Received File Successfully"));
                         } else {
                             // an error occurred, discard file from buffer
                             serverBufferState.removeFileFromBuffer(fUTerm.fileId);
                             nu.write(new FileUploadTermination(fUTerm.fileId, "An error occurred, file discarded"));
                         }
-                    } else if(fUTerm.text.equalsIgnoreCase("Socket Timed Out")) {
+                    } else if (fUTerm.text.equalsIgnoreCase("Socket Timed Out")) {
                         // discard file from buffer
                         System.out.println("Socket Timed Out");
                         serverBufferState.removeFileFromBuffer(fUTerm.fileId);
@@ -89,6 +90,36 @@ public class ServerReadThread implements Runnable{
 
                     currentFileUploadInfo = null;
                 }
+
+                if (o instanceof InitiateSelfFileDownload initiateSFD) {
+                    String filePath = "files/" + clientName + "/" + initiateSFD.fileType + "/" + initiateSFD.fileName;
+                    sendFile(initiateSFD.fileName, filePath, Server.MAX_CHUNK_SIZE);
+                }
+
+                if (o instanceof InitiateOtherFileDownload initiateOFD) {
+                    String filePath = "files/" + initiateOFD.userName + "/public/" + initiateOFD.fileName;
+                    sendFile(initiateOFD.fileName, filePath, Server.MAX_CHUNK_SIZE);
+                }
+
+            } catch (IOException | ClassNotFoundException e) {
+                if (e instanceof SocketException) {
+                    try {
+                        if (currentFileUploadInfo != null) {
+                            serverBufferState.removeFileFromBuffer(currentFileUploadInfo.fileId);
+                            System.out.println("Removed all the chunks of file(fileId:" + currentFileUploadInfo.fileId + ") from buffer");
+                            currentFileUploadInfo = null;
+                        }
+                        nu.closeConnection();
+                        activeClientMap.remove(clientName);
+                        System.out.println("Client " + clientName + " disconnected");
+                        break;
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                } else {
+                    System.out.println("Exception in ServerReadThread: " + e);
+                }
+            }
 
 
 //                String s = (String) nu.read();
@@ -115,27 +146,36 @@ public class ServerReadThread implements Runnable{
 //                    }
 //                }
 
-            } catch (Exception e) {
-                System.out.println("Error in ServerReadThread.run(): " + e);
-                if(e instanceof SocketException) {
-                    try {
-                        if(currentFileUploadInfo != null) {
-                            serverBufferState.removeFileFromBuffer(currentFileUploadInfo.fileId);
-                            System.out.println("Removed all the chunks of file(fileId:" + currentFileUploadInfo.fileId + ") from buffer");
-                            currentFileUploadInfo = null;
-                        }
-                        nu.closeConnection();
-                        activeClientMap.remove(clientName);
-                        System.out.println("Client " + clientName + " disconnected");
-                        break;
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
-                }
-            }
+//            } catch (SocketException e) {
+//                System.out.println("Error in ServerReadThread.run(): " + e);
+//
+//            }
         }
     }
 
+    void sendFile(String fileName, String filePath, int chunkSize) throws IOException {
+        try {
+            FileInputStream fis = new FileInputStream(filePath);
+            nu.write(new FileDownloadPermission(fileName, "File Found. Download Starting"));
+
+            long fileLength = new File(fileName).length();
+            byte[] buffer = new byte[chunkSize];
+            int bytesRead;
+
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                nu.write(new FileDownloadChunk(fileName, buffer, bytesRead));
+                System.out.println("Sending file: " + fileName + " to " + clientName + "--> chunkSize: " + bytesRead);
+                buffer = new byte[chunkSize]; // otherwise the last chunk will be sent multiple times
+            }
+
+            nu.write(new FileDownloadTermination(fileName, "File Download Complete"));
+
+        } catch (FileNotFoundException e) {
+            nu.write(new FileDownloadPermission(fileName, "File Not Found"));
+        }
+    }
+
+    /*
     void receiveFile(String fileType, String fileName, int chunkSize, int fileSize) throws IOException {
         FileOutputStream fileOutputStream =
                 new FileOutputStream("files/" + clientName + "/" + fileType +
@@ -158,4 +198,6 @@ public class ServerReadThread implements Runnable{
             fileOutputStream.close();
             System.out.println("File received successfully.");
     }
+    */
+
 }

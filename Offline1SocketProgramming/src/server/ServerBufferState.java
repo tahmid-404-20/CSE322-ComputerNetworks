@@ -1,5 +1,7 @@
 package server;
 
+import util.BufferChunk;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ public class ServerBufferState {
         for(BufferChunk bufferChunk : currentBuffer.get(fileId)) {
             fos.write(bufferChunk.bytes, 0, bufferChunk.chunkSize);
         }
+        fos.close();
         removeFileFromBuffer(fileId);
     }
 
