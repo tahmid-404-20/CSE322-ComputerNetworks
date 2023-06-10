@@ -113,6 +113,24 @@ public class ClientWriteThread implements Runnable {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            } else if(command.equalsIgnoreCase("respond")) {
+                long requestId = Long.parseLong(tokens.get(1).trim());
+                String fileName = tokens.get(2).trim();
+
+                File file = new File(fileName);
+
+                if(file.exists()) {
+                    long fileSize = file.length();
+                    try {
+                        System.out.println("Sending file upload request to respond to request");
+                        networkUtil.write(new InitiateFileUpload(fileName, fileSize, requestId));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("File does not exist");
+                }
+
             } else
              {
                 System.out.println("Invalid command");

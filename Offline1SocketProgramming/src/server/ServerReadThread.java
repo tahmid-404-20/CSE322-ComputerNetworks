@@ -19,11 +19,10 @@ public class ServerReadThread implements Runnable {
     String clientName;
     NetworkUtil nu;
     Thread t;
+    ServerMessageDump serverMessageDump;
     private HashMap<String, NetworkUtil> activeClientMap;
     private ServerBufferState serverBufferState;
     private HashMap<String, ClientInfo> clientInfoMap;
-    ServerMessageDump serverMessageDump;
-
     private CurrentFileUploadInfo currentFileUploadInfo;
 
     public ServerReadThread(String clientName, NetworkUtil nu, HashMap<String, NetworkUtil> activeClientMap,
@@ -47,7 +46,9 @@ public class ServerReadThread implements Runnable {
                 Object o = nu.read();
                 if (o instanceof InitiateFileUpload initiateFileUpload) {
                     if ((serverBufferState.occupiedSize + initiateFileUpload.fileSize) <= Server.MAX_BUFFER_SIZE) {
+
                         String filePath = "files/" + clientName + "/" + initiateFileUpload.fileType + "/" + initiateFileUpload.fileName;
+
                         if (new File(filePath).exists()) {
                             nu.write(new FileUploadPermission("File Already Exists. Transfer Aborted"));
                             continue;
@@ -62,8 +63,14 @@ public class ServerReadThread implements Runnable {
                             fileId = random.nextInt(10000);
                         }
 
-                        currentFileUploadInfo = new CurrentFileUploadInfo(fileId,
-                                initiateFileUpload.fileName, initiateFileUpload.fileType, initiateFileUpload.fileSize);
+                        if (initiateFileUpload.isResponseToRequest) {
+                            currentFileUploadInfo = new CurrentFileUploadInfo(fileId,
+                                    initiateFileUpload.fileName, initiateFileUpload.fileType, initiateFileUpload.fileSize, initiateFileUpload.requestId);
+                        } else {
+                            currentFileUploadInfo = new CurrentFileUploadInfo(fileId,
+                                    initiateFileUpload.fileName, initiateFileUpload.fileType, initiateFileUpload.fileSize);
+                        }
+
                         nu.write(new FileUploadPermission(fileId, initiateFileUpload.fileName, chunkSize, "Permission Granted"));
                     } else {
                         nu.write(new FileUploadPermission("Server Buffer Full. Transfer Aborted"));
@@ -73,8 +80,8 @@ public class ServerReadThread implements Runnable {
                 if (o instanceof FileUploadChunk fUChunk) {
                     serverBufferState.addChunk(fUChunk.fileId, fUChunk.bytes, fUChunk.chunkSize);
                     System.out.println("Received chunk " + fUChunk.chunkSize + "bytes of file " + fUChunk.fileId + " from " + clientName);
-                    // send ack
 
+                    // send ack
                     // for testing timeOut, just comment the line below
                     nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
                 }
@@ -89,6 +96,17 @@ public class ServerReadThread implements Runnable {
                             serverBufferState.writeFileToOutputBuffer(fUTerm.fileId, fos);
 
                             System.out.println("Received file successfully from " + clientName);
+
+                            // if the file upload was a response to a request, send the message to the client
+                            if (currentFileUploadInfo.isResponseToRequest) {
+                                Message msg = serverMessageDump.getMessage(currentFileUploadInfo.requestId);
+                                if (msg != null) {
+                                    msg.message = "Hello from server. In response to your request (" + msg.message +
+                                            "), file - " + currentFileUploadInfo.fileName + " has been uploaded successfully by " + clientName;
+                                    clientInfoMap.get(msg.sender).addMessage(msg);
+                                }
+                            }
+
                             nu.write(new FileUploadTermination(fUTerm.fileId, "Server Received File Successfully"));
                         } else {
                             // an error occurred, discard file from buffer
@@ -114,21 +132,21 @@ public class ServerReadThread implements Runnable {
                     sendFile(initiateOFD.fileName, filePath, Server.MAX_CHUNK_SIZE);
                 }
 
-                if(o instanceof LookUpRequest LUR) {
+                if (o instanceof LookUpRequest LUR) {
                     String request = LUR.requestText;
 
-                    if(request.equalsIgnoreCase("LookUp Own Files")) {
+                    if (request.equalsIgnoreCase("LookUp Own Files")) {
                         nu.write(new LookUpResponse("Response to LookUp Own Files", lookUpOwnFiles()));
-                    } else if(request.equalsIgnoreCase("LookUp Other's Files")) {
+                    } else if (request.equalsIgnoreCase("LookUp Other's Files")) {
                         nu.write(new LookUpResponse("Response to LookUp Other's Files", lookUpOthersFiles()));
-                    } else if(request.equalsIgnoreCase("LookUp Other Clients")) {
+                    } else if (request.equalsIgnoreCase("LookUp Other Clients")) {
                         nu.write(new LookUpResponse("Response to LookUp Other Clients", lookUpOtherClients()));
-                    } else if(request.equalsIgnoreCase("LookUp Unread Messages")) {
+                    } else if (request.equalsIgnoreCase("LookUp Unread Messages")) {
                         nu.write(new LookUpResponse("Response to LookUp Unread Messages", lookUpUnreadMessages()));
                     }
                 }
 
-                if(o instanceof SendRequest SR) {
+                if (o instanceof SendRequest SR) {
                     String description = SR.message;
                     serverMessageDump.addMessage(new Message(description, clientName));
                 }
@@ -182,7 +200,7 @@ public class ServerReadThread implements Runnable {
         List<String> messageList = new ArrayList<>();
         messageList.add("RequestId-MessageBody-SenderClientName\n");
 
-        for(Message m : clientInfoMap.get(clientName).getUnreadMessages()) {
+        for (Message m : clientInfoMap.get(clientName).getUnreadMessages()) {
             messageList.add(m.requestId + "-" + m.message + "-" + m.sender + "\n");
         }
 
@@ -190,7 +208,7 @@ public class ServerReadThread implements Runnable {
         clientInfoMap.get(clientName).getUnreadMessages().clear();
 
         StringBuilder sb = new StringBuilder();
-        for(String s : messageList) {
+        for (String s : messageList) {
             sb.append(s);
         }
 
@@ -203,7 +221,7 @@ public class ServerReadThread implements Runnable {
             if (!clientName.equalsIgnoreCase(this.clientName)) {
                 clientNames.add(clientName + " ");
 
-                if(activeClientMap.containsKey(clientName)) {
+                if (activeClientMap.containsKey(clientName)) {
                     clientNames.add("- Online\n");
                 } else {
                     clientNames.add("\n");
@@ -211,7 +229,7 @@ public class ServerReadThread implements Runnable {
             }
         }
         StringBuilder sb = new StringBuilder();
-        for(String s : clientNames) {
+        for (String s : clientNames) {
             sb.append(s);
         }
 
@@ -248,7 +266,7 @@ public class ServerReadThread implements Runnable {
         }
 
         StringBuilder sb = new StringBuilder();
-        for(String s : fileNames) {
+        for (String s : fileNames) {
             sb.append(s);
         }
 
@@ -259,8 +277,8 @@ public class ServerReadThread implements Runnable {
         List<String> fileNames = new ArrayList<>();
 
         String directoryPath;
-        for(String userName : clientInfoMap.keySet()) {
-            if(userName.equals(clientName)) continue;
+        for (String userName : clientInfoMap.keySet()) {
+            if (userName.equals(clientName)) continue;
 
             directoryPath = "files/" + userName + "/public/";
             fileNames.add("Files of " + userName + ":\n");
@@ -276,7 +294,7 @@ public class ServerReadThread implements Runnable {
         }
 
         StringBuilder sb = new StringBuilder();
-        for(String s : fileNames) {
+        for (String s : fileNames) {
             sb.append(s);
         }
 

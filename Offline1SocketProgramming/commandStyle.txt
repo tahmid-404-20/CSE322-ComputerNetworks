@@ -9,5 +9,5 @@
 4. lookUpOthers  (For looking up other client names and active status)
 5. lookUpUnreadMessages (For looking up unread messages)
 6. request, description (For requesting a file)
-7. response, requestId, fileName (for responding to a request)
+7. respond, requestId, fileName (for responding to a request)
 8. logout

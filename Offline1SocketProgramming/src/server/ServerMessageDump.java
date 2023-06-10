@@ -27,4 +27,8 @@ public class ServerMessageDump {
             }
         }
     }
+
+    public Message getMessage(long requestId) {
+        return messageHashMap.get(requestId);
+    }
 }
