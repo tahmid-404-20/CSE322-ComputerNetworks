@@ -39,9 +39,7 @@ public class ClientReadThread implements Runnable{
                 }
 
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (ClassNotFoundException e) {
+            } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
         }

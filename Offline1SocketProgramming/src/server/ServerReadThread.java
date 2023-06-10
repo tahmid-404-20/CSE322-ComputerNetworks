@@ -5,6 +5,7 @@ import util.NetworkUtil;
 import util.fileTransmission.*;
 
 import java.io.*;
+import java.net.SocketException;
 import java.util.*;
 
 public class ServerReadThread implements Runnable{
@@ -61,7 +62,7 @@ public class ServerReadThread implements Runnable{
                     // send ack
 
                     // for testing timeOut, just comment the line below
-//                    nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
+                    nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
                 }
 
                 if(o instanceof FileUploadTermination fUTerm) {  // either file upload complete or socket timed out, currentFileInfo = null at end
@@ -114,11 +115,24 @@ public class ServerReadThread implements Runnable{
 //                    }
 //                }
 
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (Exception e) {
                 System.out.println("Error in ServerReadThread.run(): " + e);
-//                e.printStackTrace();
+                if(e instanceof SocketException) {
+                    try {
+                        if(currentFileUploadInfo != null) {
+                            serverBufferState.removeFileFromBuffer(currentFileUploadInfo.fileId);
+                            System.out.println("Removed all the chunks of file(fileId:" + currentFileUploadInfo.fileId + ") from buffer");
+                            currentFileUploadInfo = null;
+                        }
+                        nu.closeConnection();
+                        activeClientMap.remove(clientName);
+                        System.out.println("Client " + clientName + " disconnected");
+                        break;
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                }
             }
-
         }
     }
 

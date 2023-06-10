@@ -47,12 +47,14 @@ public class ServerBufferState {
     }
 
     void removeFileFromBuffer(int fileId) {
-        long totalBytesRemoved = 0;
-        for(BufferChunk bufferChunk : currentBuffer.get(fileId)) {
-            totalBytesRemoved += bufferChunk.chunkSize;
-        }
+        if(currentBuffer.containsKey(fileId)) {
+            long totalBytesRemoved = 0;
+            for(BufferChunk bufferChunk : currentBuffer.get(fileId)) {
+                totalBytesRemoved += bufferChunk.chunkSize;
+            }
 
-        occupiedSize -= totalBytesRemoved;
-        currentBuffer.remove(fileId);
+            occupiedSize -= totalBytesRemoved;
+            currentBuffer.remove(fileId);
+        }
     }
 }
