@@ -12,4 +12,9 @@ public class Message implements Serializable {
         this.message = message;
         this.sender = sender;
     }
+
+    public Message(String message, String sender) {
+        this.message = message;
+        this.sender = sender;
+    }
 }

@@ -5,6 +5,7 @@ import util.fileDownload.InitiateOtherFileDownload;
 import util.fileDownload.InitiateSelfFileDownload;
 import util.fileUpload.InitiateFileUpload;
 import util.lookUps.LookUpRequest;
+import util.message.SendRequest;
 
 import java.io.File;
 import java.io.IOException;
@@ -98,7 +99,22 @@ public class ClientWriteThread implements Runnable {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-            } else {
+            } else if (command.equalsIgnoreCase("lookUpUnreadMessages")) {
+                try {
+                    networkUtil.write(new LookUpRequest("LookUp Unread Messages"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else if(command.equalsIgnoreCase("request")) {
+                String requestDescription = tokens.get(1).trim();
+
+                try {
+                    networkUtil.write(new SendRequest(requestDescription));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else
+             {
                 System.out.println("Invalid command");
             }
         }

@@ -1,8 +1,13 @@
-1. File upload
-file, upload, public/private, fileName
-2. File download
+1. File Operation (Upload)
+    a) file, upload, public/private, fileName
+2. File Operation (Download)
     a) file, download, #, public/private, fileName (For downloading own files)
     b) file, download, userName, fileName (For downloading other's files)
-    c) file, lookUpOthers
-    d) file, lookUpOwn
-4. lookUpOthers  (For looking up other clients)
+3. LookUps
+    a) file, lookUpOthers (For looking up other clients public files)
+    b) file, lookUpOwn (For looking up own public+private files)
+4. lookUpOthers  (For looking up other client names and active status)
+5. lookUpUnreadMessages (For looking up unread messages)
+6. request, description (For requesting a file)
+7. response, requestId, fileName (for responding to a request)
+8. logout

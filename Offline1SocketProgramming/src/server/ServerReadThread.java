@@ -5,6 +5,8 @@ import util.fileDownload.*;
 import util.fileUpload.*;
 import util.lookUps.LookUpRequest;
 import util.lookUps.LookUpResponse;
+import util.message.Message;
+import util.message.SendRequest;
 
 import java.io.*;
 import java.net.SocketException;
@@ -121,7 +123,14 @@ public class ServerReadThread implements Runnable {
                         nu.write(new LookUpResponse("Response to LookUp Other's Files", lookUpOthersFiles()));
                     } else if(request.equalsIgnoreCase("LookUp Other Clients")) {
                         nu.write(new LookUpResponse("Response to LookUp Other Clients", lookUpOtherClients()));
+                    } else if(request.equalsIgnoreCase("LookUp Unread Messages")) {
+                        nu.write(new LookUpResponse("Response to LookUp Unread Messages", lookUpUnreadMessages()));
                     }
+                }
+
+                if(o instanceof SendRequest SR) {
+                    String description = SR.message;
+                    serverMessageDump.addMessage(new Message(description, clientName));
                 }
 
             } catch (IOException | ClassNotFoundException e) {
@@ -166,6 +175,26 @@ public class ServerReadThread implements Runnable {
         } catch (FileNotFoundException e) {
             nu.write(new FileDownloadPermission(fileName, "File Not Found"));
         }
+    }
+
+    // lookUP Codes
+    private String lookUpUnreadMessages() {
+        List<String> messageList = new ArrayList<>();
+        messageList.add("RequestId-MessageBody-SenderClientName\n");
+
+        for(Message m : clientInfoMap.get(clientName).getUnreadMessages()) {
+            messageList.add(m.requestId + "-" + m.message + "-" + m.sender + "\n");
+        }
+
+        // all unread messages are now read
+        clientInfoMap.get(clientName).getUnreadMessages().clear();
+
+        StringBuilder sb = new StringBuilder();
+        for(String s : messageList) {
+            sb.append(s);
+        }
+
+        return sb.toString();
     }
 
     private String lookUpOtherClients() {
