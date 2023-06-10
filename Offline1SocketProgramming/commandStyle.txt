@@ -3,3 +3,6 @@ file, upload, public/private, fileName
 2. File download
     a) file, download, #, public/private, fileName (For downloading own files)
     b) file, download, userName, fileName (For downloading other's files)
+    c) file, lookUpOthers
+    d) file, lookUpOwn
+4. lookUpOthers  (For looking up other clients)

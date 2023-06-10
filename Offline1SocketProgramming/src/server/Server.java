@@ -78,12 +78,17 @@ public class Server {
     }
 
     private ServerSocket serverSocket;
-    private HashMap<String, ClientInfo> activeClientMap;
-    private ServerBufferState serverBufferState;
+    private final HashMap<String, NetworkUtil> activeClientMap;
+    private final HashMap<String, ClientInfo> clientInfoMap;
+    private ServerMessageDump serverMessageDump;
+    private final ServerBufferState serverBufferState;
 
     Server() {
         activeClientMap= new HashMap<>();
         serverBufferState = new ServerBufferState();
+        clientInfoMap = new HashMap<>();
+        serverMessageDump = new ServerMessageDump(clientInfoMap);
+        gatherClientInfo();
 
         try {
             serverSocket = new ServerSocket(PORT);
@@ -113,8 +118,8 @@ public class Server {
                 if (name.equals(userName)) {
                     found = true;
                     networkUtil.write("Login Successful");
-                    activeClientMap.put(userName, new ClientInfo());
-                    new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState);
+                    activeClientMap.put(userName, networkUtil);
+                    new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState, clientInfoMap, serverMessageDump);
                     break;
                 }
             }
@@ -125,13 +130,21 @@ public class Server {
                 new File("files/" + userName + "/public").mkdirs();
                 new File("files/" + userName + "/private").mkdirs();
                 networkUtil.write("Login Successful");
-                activeClientMap.put(userName, new ClientInfo());
-                new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState);
+                activeClientMap.put(userName, networkUtil);
+                clientInfoMap.put(userName, new ClientInfo(userName));  // no entry in clientInfoMap before
+
+                new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState, clientInfoMap, serverMessageDump);
             }
         }
     }
 
-    public List<String> lookUpClientNames() {
+    private void gatherClientInfo() {
+        for(String name : lookUpClientNames()) {
+            clientInfoMap.put(name, new ClientInfo(name));
+        }
+    }
+
+    private List<String> lookUpClientNames() {
         String directoryPath = "files";
         File directory = new File(directoryPath);
         File[] files = directory.listFiles();

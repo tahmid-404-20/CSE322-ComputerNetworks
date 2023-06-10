@@ -4,6 +4,7 @@ import util.NetworkUtil;
 import util.fileDownload.InitiateOtherFileDownload;
 import util.fileDownload.InitiateSelfFileDownload;
 import util.fileUpload.InitiateFileUpload;
+import util.lookUps.LookUpRequest;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,7 +76,30 @@ public class ClientWriteThread implements Runnable {
                             e.printStackTrace();
                         }
                     }
+                } else if(tokens.get(1).trim().equalsIgnoreCase("lookUpOthers")) {
+                    try {
+                        networkUtil.write(new LookUpRequest("LookUp Other's Files"));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                } else if(tokens.get(1).trim().equalsIgnoreCase("lookUpOwn")) {
+                    try {
+                        networkUtil.write(new LookUpRequest("LookUp Own Files"));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("Invalid command");
                 }
+            } else if (command.equalsIgnoreCase("lookUpOthers")) {
+                try {
+                    networkUtil.write(new LookUpRequest("LookUp Other Clients"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("Invalid command");
             }
         }
     }

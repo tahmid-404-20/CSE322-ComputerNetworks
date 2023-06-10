@@ -3,26 +3,37 @@ package server;
 import util.NetworkUtil;
 import util.fileDownload.*;
 import util.fileUpload.*;
+import util.lookUps.LookUpRequest;
+import util.lookUps.LookUpResponse;
 
 import java.io.*;
 import java.net.SocketException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 
 public class ServerReadThread implements Runnable {
     String clientName;
     NetworkUtil nu;
     Thread t;
-    private HashMap<String, ClientInfo> activeClientMap;
+    private HashMap<String, NetworkUtil> activeClientMap;
     private ServerBufferState serverBufferState;
+    private HashMap<String, ClientInfo> clientInfoMap;
+    ServerMessageDump serverMessageDump;
+
     private CurrentFileUploadInfo currentFileUploadInfo;
 
-    public ServerReadThread(String clientName, NetworkUtil nu, HashMap<String,
-            ClientInfo> activeClientMap, ServerBufferState serverBufferState) {
+    public ServerReadThread(String clientName, NetworkUtil nu, HashMap<String, NetworkUtil> activeClientMap,
+                            ServerBufferState serverBufferState, HashMap<String, ClientInfo> clientInfoMap,
+                            ServerMessageDump serverMessageDump) {
+
         this.clientName = clientName;
         this.nu = nu;
         this.activeClientMap = activeClientMap;
         this.serverBufferState = serverBufferState;
+        this.clientInfoMap = clientInfoMap;
+        this.serverMessageDump = serverMessageDump;
         t = new Thread(this);
         t.start();
     }
@@ -101,8 +112,20 @@ public class ServerReadThread implements Runnable {
                     sendFile(initiateOFD.fileName, filePath, Server.MAX_CHUNK_SIZE);
                 }
 
+                if(o instanceof LookUpRequest LUR) {
+                    String request = LUR.requestText;
+
+                    if(request.equalsIgnoreCase("LookUp Own Files")) {
+                        nu.write(new LookUpResponse("Response to LookUp Own Files", lookUpOwnFiles()));
+                    } else if(request.equalsIgnoreCase("LookUp Other's Files")) {
+                        nu.write(new LookUpResponse("Response to LookUp Other's Files", lookUpOthersFiles()));
+                    } else if(request.equalsIgnoreCase("LookUp Other Clients")) {
+                        nu.write(new LookUpResponse("Response to LookUp Other Clients", lookUpOtherClients()));
+                    }
+                }
+
             } catch (IOException | ClassNotFoundException e) {
-                if (e instanceof SocketException) {
+                if (e instanceof SocketException) {  // client disconnected
                     try {
                         if (currentFileUploadInfo != null) {
                             serverBufferState.removeFileFromBuffer(currentFileUploadInfo.fileId);
@@ -120,36 +143,6 @@ public class ServerReadThread implements Runnable {
                     System.out.println("Exception in ServerReadThread: " + e);
                 }
             }
-
-
-//                String s = (String) nu.read();
-//
-//                // tokenize s using , as delimiter using StringTokenizer
-//                // send the tokenized string to all clients
-//                StringTokenizer st = new StringTokenizer(s, ",");
-//                List<String> tokens = new ArrayList<>();
-//
-//                while (st.hasMoreTokens()) {
-//                    tokens.add(st.nextToken());
-//                }
-//
-//                String command = tokens.get(0);
-//                if(command.equalsIgnoreCase("file")) {
-//                    if(tokens.get(1).equalsIgnoreCase("upload")) {
-//                        String fileType = tokens.get(2);
-//                        String fileName = tokens.get(3);
-//                        int fileSize = Integer.parseInt(tokens.get(4));
-//                        receiveFile(fileType, fileName, 1024, fileSize);
-//                        while(true);
-//                    } else if(tokens.get(1).equalsIgnoreCase("download")) {
-//
-//                    }
-//                }
-
-//            } catch (SocketException e) {
-//                System.out.println("Error in ServerReadThread.run(): " + e);
-//
-//            }
         }
     }
 
@@ -175,29 +168,91 @@ public class ServerReadThread implements Runnable {
         }
     }
 
-    /*
-    void receiveFile(String fileType, String fileName, int chunkSize, int fileSize) throws IOException {
-        FileOutputStream fileOutputStream =
-                new FileOutputStream("files/" + clientName + "/" + fileType +
-                        "/" + fileName);
+    private String lookUpOtherClients() {
+        List<String> clientNames = new ArrayList<>();
+        for (String clientName : clientInfoMap.keySet()) {
+            if (!clientName.equalsIgnoreCase(this.clientName)) {
+                clientNames.add(clientName + " ");
 
-
-            // Define chunk size (in bytes)
-//            int chunkSize = 1024;
-            byte[] buffer = new byte[chunkSize];
-            int bytesRead;
-
-            // Read data from the input stream and write to the file
-            while (fileSize>0 && (bytesRead = nu.socket.getInputStream().read(buffer)) != -1) {
-                System.out.println("Bytes read: " + bytesRead);
-                fileOutputStream.write(buffer, 0, bytesRead);
-                System.out.println("Received Byte");
-                fileSize -= bytesRead;
+                if(activeClientMap.containsKey(clientName)) {
+                    clientNames.add("- Online\n");
+                } else {
+                    clientNames.add("\n");
+                }
             }
+        }
+        StringBuilder sb = new StringBuilder();
+        for(String s : clientNames) {
+            sb.append(s);
+        }
 
-            fileOutputStream.close();
-            System.out.println("File received successfully.");
+        return sb.toString();
     }
-    */
+
+    private String lookUpOwnFiles() {
+        List<String> fileNames = new ArrayList<>();
+
+        // private files
+        String directoryPathPrivate = "files/" + clientName + "/private/";
+        File directory = new File(directoryPathPrivate);
+        File[] files = directory.listFiles();
+        fileNames.add("Private Files:\n");
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile()) {
+                    fileNames.add(file.getName() + "\n");
+                }
+            }
+        }
+
+        // public files
+        String directoryPathPublic = "files/" + clientName + "/public/";
+        directory = new File(directoryPathPublic);
+        files = directory.listFiles();
+        fileNames.add("Public Files:\n");
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile()) {
+                    fileNames.add(file.getName() + "\n");
+                }
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for(String s : fileNames) {
+            sb.append(s);
+        }
+
+        return sb.toString();
+    }
+
+    private String lookUpOthersFiles() {
+        List<String> fileNames = new ArrayList<>();
+
+        String directoryPath;
+        for(String userName : clientInfoMap.keySet()) {
+            if(userName.equals(clientName)) continue;
+
+            directoryPath = "files/" + userName + "/public/";
+            fileNames.add("Files of " + userName + ":\n");
+            File directory = new File(directoryPath);
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) {
+                        fileNames.add(file.getName() + "\n");
+                    }
+                }
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for(String s : fileNames) {
+            sb.append(s);
+        }
+
+        return sb.toString();
+    }
+
 
 }

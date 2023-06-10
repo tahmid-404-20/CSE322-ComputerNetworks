@@ -8,6 +8,7 @@ import util.fileUpload.FileUploadChunk;
 import util.fileUpload.FileUploadChunkACK;
 import util.fileUpload.FileUploadPermission;
 import util.fileUpload.FileUploadTermination;
+import util.lookUps.LookUpResponse;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -65,6 +66,9 @@ public class ClientReadThread implements Runnable{
                     currentFileDownloadInfo = null;
                 }
 
+                if(o instanceof LookUpResponse LUR) {
+                    System.out.println(LUR.requestDetails + "\n" + LUR.responseText);
+                }
 
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
