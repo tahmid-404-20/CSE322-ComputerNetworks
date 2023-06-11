@@ -131,6 +131,13 @@ public class ClientWriteThread implements Runnable {
                     System.out.println("File does not exist");
                 }
 
+            } else if(command.equalsIgnoreCase("logout")) {
+                try {
+                    networkUtil.write("Logout");
+                    break;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             } else
              {
                 System.out.println("Invalid command");

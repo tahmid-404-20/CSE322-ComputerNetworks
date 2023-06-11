@@ -70,6 +70,17 @@ public class ClientReadThread implements Runnable{
                     System.out.println(LUR.requestDetails + "\n" + LUR.responseText);
                 }
 
+                if(o instanceof String s) {
+                    if(s.equalsIgnoreCase("Logout Successful")) {
+                        nu.closeConnection();
+                        System.out.println(s);
+                        break;
+                    } else {
+                        System.out.println(s);
+                    }
+
+                }
+
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }

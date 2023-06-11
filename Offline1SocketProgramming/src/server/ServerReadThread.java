@@ -151,6 +151,23 @@ public class ServerReadThread implements Runnable {
                     serverMessageDump.addMessage(new Message(description, clientName));
                 }
 
+                if(o instanceof String str) {
+                    if(str.equalsIgnoreCase("Logout")) {
+                        nu.write("Logout Successful");
+                        try {
+                            /*  wait for client to receive logout message,
+                                otherwise client will throw SocketException
+                                as this is a thread, it will not hamper other clients
+                             */
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        logOut();
+                        break;
+                    }
+                }
+
             } catch (IOException | ClassNotFoundException e) {
                 if (e instanceof SocketException) {  // client disconnected
                     try {
@@ -159,9 +176,8 @@ public class ServerReadThread implements Runnable {
                             System.out.println("Removed all the chunks of file(fileId:" + currentFileUploadInfo.fileId + ") from buffer");
                             currentFileUploadInfo = null;
                         }
-                        nu.closeConnection();
-                        activeClientMap.remove(clientName);
-                        System.out.println("Client " + clientName + " disconnected");
+
+                        logOut();
                         break;
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
@@ -301,5 +317,9 @@ public class ServerReadThread implements Runnable {
         return sb.toString();
     }
 
-
+    private void logOut() throws IOException {
+        nu.closeConnection();
+        activeClientMap.remove(clientName);
+        System.out.println("Client " + clientName + " disconnected");
+    }
 }
