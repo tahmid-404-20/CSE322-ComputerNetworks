@@ -19,62 +19,6 @@ public class Server {
 
     public static void main(String[] args) throws IOException {
         new Server();
-//        final int PORT = 6000;
-
-//        ServerSocket serverSocket = null;
-//        Socket socket = null;
-//        InputStream inputStream = null;
-//        FileOutputStream fileOutputStream = null;
-//
-//        try {
-//            // Start server and listen on a specific port
-//            serverSocket = new ServerSocket(PORT);
-//            System.out.println("Server started. Waiting for client...");
-//
-//            // Accept client connection
-//            socket = serverSocket.accept();
-//            System.out.println("Client connected.");
-//
-//            // Create input stream to receive data from the client
-//            inputStream = socket.getInputStream();
-//
-//            // Create file output stream to write data to the file and open a folder to save the file
-//            new File("files").mkdirs();
-//            fileOutputStream = new FileOutputStream("files/received_file3.pdf");
-//
-//
-//            // Define chunk size (in bytes)
-//            int chunkSize = 1024;
-//            byte[] buffer = new byte[chunkSize];
-//            int bytesRead;
-//
-//            // Read data from the input stream and write to the file
-//            while ((bytesRead = inputStream.read(buffer)) != -1) {
-//                System.out.println("Bytes read: " + bytesRead);
-//                fileOutputStream.write(buffer, 0, bytesRead);
-//            }
-//
-//            System.out.println("File received successfully.");
-//        } finally {
-//            // Close all resources
-//            if (fileOutputStream != null) {
-//                fileOutputStream.close();
-//            }
-//
-//            if (inputStream != null) {
-//                inputStream.close();
-//            }
-//
-//            if (socket != null) {
-//                socket.close();
-//            }
-//
-//            if (serverSocket != null) {
-//                serverSocket.close();
-//            }
-//
-//            System.out.println("Server closed.");
-//        }
     }
 
     private ServerSocket serverSocket;
@@ -96,45 +40,10 @@ public class Server {
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                serve(clientSocket);
+                new ServerLoginThread(activeClientMap, clientInfoMap, serverMessageDump, serverBufferState, clientSocket);
             }
         } catch (Exception e) {
             System.out.println("server.Server starts:" + e);
-        }
-    }
-
-    public void serve(Socket clientSocket) throws IOException, ClassNotFoundException {
-        NetworkUtil networkUtil = new NetworkUtil(clientSocket);
-        networkUtil.write("Connected to server. Please Send your name: ");
-
-        String userName = (String) networkUtil.read();
-        if (activeClientMap.containsKey(userName)) {  // user already online
-            networkUtil.write("User already logged in. Please try again");
-            networkUtil.closeConnection();
-        } else {
-            // now see if logged in before, then no need to create a directory
-            boolean found = false;
-            for (String name : lookUpClientNames()) {
-                if (name.equals(userName)) {
-                    found = true;
-                    networkUtil.write("Login Successful");
-                    activeClientMap.put(userName, networkUtil);
-                    new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState, clientInfoMap, serverMessageDump);
-                    break;
-                }
-            }
-
-            // need to open a directory
-            if(!found) {
-                // open a new directory for the user, add to active client list
-                new File("files/" + userName + "/public").mkdirs();
-                new File("files/" + userName + "/private").mkdirs();
-                networkUtil.write("Login Successful");
-                activeClientMap.put(userName, networkUtil);
-                clientInfoMap.put(userName, new ClientInfo(userName));  // no entry in clientInfoMap before
-
-                new ServerReadThread(userName,networkUtil, activeClientMap, serverBufferState, clientInfoMap, serverMessageDump);
-            }
         }
     }
 
@@ -144,7 +53,7 @@ public class Server {
         }
     }
 
-    private List<String> lookUpClientNames() {
+    static List<String> lookUpClientNames() {
         String directoryPath = "files";
         File directory = new File(directoryPath);
         File[] files = directory.listFiles();
