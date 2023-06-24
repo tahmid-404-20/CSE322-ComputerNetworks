@@ -1,19 +1,20 @@
 package client;
 
 import util.NetworkUtil;
-import util.fileDownload.FileDownloadChunk;
-import util.fileDownload.FileDownloadPermission;
-import util.fileDownload.FileDownloadTermination;
-import util.fileUpload.FileUploadChunk;
-import util.fileUpload.FileUploadChunkACK;
-import util.fileUpload.FileUploadPermission;
-import util.fileUpload.FileUploadTermination;
+import util.fileDownload.*;
+import util.fileUpload.*;
+import util.lookUps.LookUpRequest;
 import util.lookUps.LookUpResponse;
+import util.message.SendRequest;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+import java.util.StringTokenizer;
 
 public class ClientReadThread implements Runnable{
     NetworkUtil nu;
@@ -28,7 +29,9 @@ public class ClientReadThread implements Runnable{
 
     @Override
     public void run() {
+        Scanner scr = new Scanner(System.in);
         while(true) {
+            write(scr);
             try {
                 Object o = nu.read();
 
@@ -45,25 +48,10 @@ public class ClientReadThread implements Runnable{
                     if(fDPerm.text.equalsIgnoreCase("File Found. Download Starting")) {
                         System.out.println("Starting download");
                         currentFileDownloadInfo = new CurrentFileDownloadInfo(fDPerm.fileName);
+                        downloadFile();
                     } else {
                         System.out.println(fDPerm.text);
                     }
-                }
-
-                if(o instanceof FileDownloadChunk fDChunk) {
-                    currentFileDownloadInfo.addChunk(fDChunk.bytes, fDChunk.chunkSize);
-                    System.out.println("Received chunk " + fDChunk.chunkSize + " bytes of file " + currentFileDownloadInfo.fileName +" from Server");
-                }
-
-                if(o instanceof FileDownloadTermination fDTerm) {
-
-                    if(fDTerm.text.equalsIgnoreCase("File Download Complete")) {
-                        System.out.println("Download complete");
-                        currentFileDownloadInfo.saveFile();
-                    } else {
-                        System.out.println(fDTerm.text);
-                    }
-                    currentFileDownloadInfo = null;
                 }
 
                 if(o instanceof LookUpResponse LUR) {
@@ -83,6 +71,125 @@ public class ClientReadThread implements Runnable{
 
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
+            }
+        }
+    }
+
+    void write(Scanner scr) {
+        while (true) {
+            System.out.print("Enter a command: ");
+            String s = scr.nextLine();
+
+            StringTokenizer st = new StringTokenizer(s, ",");
+            List<String> tokens = new ArrayList<>();
+            while (st.hasMoreTokens()) {
+                tokens.add(st.nextToken());
+            }
+
+            String command = tokens.get(0).trim();
+            // file -> upload, download -> self, otherDownload(for download only)
+            if (command.equalsIgnoreCase("file")) {
+                if (tokens.get(1).trim().equalsIgnoreCase("upload")) {
+                    String fileType = tokens.get(2).trim();
+                    String fileName = tokens.get(3).trim();
+                    File file = new File(fileName);
+
+                    if(file.exists()) {
+                        long fileSize = file.length();
+                        try {
+                            System.out.println("Sending file upload request");
+                            nu.write(new InitiateFileUpload(fileName, fileType, fileSize));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        System.out.println("File does not exist");
+                    }
+//
+                } else if (tokens.get(1).trim().equalsIgnoreCase("download")) {
+                    if(tokens.size() == 5) { // download self file
+                        String fileType = tokens.get(3).trim();
+                        String fileName = tokens.get(4).trim();
+
+                        try {
+                            nu.write(new InitiateSelfFileDownload(fileName, fileType));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    } else {  // download others file
+                        String clientName = tokens.get(2).trim();
+                        String fileName = tokens.get(3).trim();
+
+                        try {
+                            nu.write(new InitiateOtherFileDownload(clientName, fileName));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                } else if(tokens.get(1).trim().equalsIgnoreCase("lookUpOthers")) {
+                    try {
+                        nu.write(new LookUpRequest("LookUp Other's Files"));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                } else if(tokens.get(1).trim().equalsIgnoreCase("lookUpOwn")) {
+                    try {
+                        nu.write(new LookUpRequest("LookUp Own Files"));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("Invalid command");
+                }
+            } else if (command.equalsIgnoreCase("lookUpOthers")) {
+                try {
+                    nu.write(new LookUpRequest("LookUp Other Clients"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else if (command.equalsIgnoreCase("lookUpUnreadMessages")) {
+                try {
+                    nu.write(new LookUpRequest("LookUp Unread Messages"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else if(command.equalsIgnoreCase("request")) {
+                String requestDescription = tokens.get(1).trim();
+
+                try {
+                    nu.write(new SendRequest(requestDescription));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else if(command.equalsIgnoreCase("respond")) {
+                long requestId = Long.parseLong(tokens.get(1).trim());
+                String fileName = tokens.get(2).trim();
+
+                File file = new File(fileName);
+
+                if(file.exists()) {
+                    long fileSize = file.length();
+                    try {
+                        System.out.println("Sending file upload request to respond to request");
+                        nu.write(new InitiateFileUpload(fileName, fileSize, requestId));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("File does not exist");
+                }
+
+            } else if(command.equalsIgnoreCase("logout")) {
+                try {
+                    nu.write("Logout");
+                    break;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else
+            {
+                System.out.println("Invalid command");
             }
         }
     }
@@ -129,5 +236,32 @@ public class ClientReadThread implements Runnable{
         }
 
         fileInputStream.close();
+    }
+
+    void downloadFile() {
+        try {
+            while(true) {
+                Object o = nu.read();
+
+                if(o instanceof FileDownloadChunk fDChunk) {
+                    currentFileDownloadInfo.addChunk(fDChunk.bytes, fDChunk.chunkSize);
+                    System.out.println("Received chunk " + fDChunk.chunkSize + " bytes of file " + currentFileDownloadInfo.fileName +" from Server");
+                }
+
+                else if(o instanceof FileDownloadTermination fDTerm) {
+
+                    if(fDTerm.text.equalsIgnoreCase("File Download Complete")) {
+                        System.out.println("Download complete");
+                        currentFileDownloadInfo.saveFile();
+                    } else {
+                        System.out.println(fDTerm.text);
+                    }
+                    currentFileDownloadInfo = null;
+                    return;
+                }
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 }

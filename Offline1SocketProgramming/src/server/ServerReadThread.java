@@ -1,5 +1,6 @@
 package server;
 
+import client.Client;
 import util.NetworkUtil;
 import util.fileDownload.*;
 import util.fileUpload.*;
@@ -82,8 +83,15 @@ public class ServerReadThread implements Runnable {
                     System.out.println("Received chunk " + fUChunk.chunkSize + "bytes of file " + fUChunk.fileId + " from " + clientName);
 
                     // send ack
-                    // for testing timeOut, just comment the line below
-                    nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
+                    // for testing timeOut, just uncomment the block below
+//                    try {
+//                        Thread.sleep(Client.SOCKET_TIMEOUT + 2000);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+                    if (nu.socket.getInputStream().available() <= 0) {
+                        nu.write(new FileUploadChunkACK(fUChunk.fileId, fUChunk.chunkSize));
+                    }
                 }
 
                 if (o instanceof FileUploadTermination fUTerm) {  // either file upload complete or socket timed out, currentFileInfo = null at end
@@ -116,7 +124,10 @@ public class ServerReadThread implements Runnable {
                     } else if (fUTerm.text.equalsIgnoreCase("Socket Timed Out")) {
                         // discard file from buffer
                         System.out.println("Socket Timed Out");
-                        serverBufferState.removeFileFromBuffer(fUTerm.fileId);
+                        if (currentFileUploadInfo != null) {
+                            System.out.println("Discarding file " + currentFileUploadInfo.fileName + " from buffer");
+                            serverBufferState.removeFileFromBuffer(fUTerm.fileId);
+                        }
                     }
 
                     currentFileUploadInfo = null;
@@ -149,10 +160,11 @@ public class ServerReadThread implements Runnable {
                 if (o instanceof SendRequest SR) {
                     String description = SR.message;
                     serverMessageDump.addMessage(new Message(description, clientName));
+                    nu.write(new LookUpResponse("Response to file request", "Server received request successfully"));
                 }
 
-                if(o instanceof String str) {
-                    if(str.equalsIgnoreCase("Logout")) {
+                if (o instanceof String str) {
+                    if (str.equalsIgnoreCase("Logout")) {
                         nu.write("Logout Successful");
                         try {
                             /*  wait for client to receive logout message,
