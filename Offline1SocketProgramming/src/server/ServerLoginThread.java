@@ -8,16 +8,17 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ServerLoginThread implements Runnable {
-    private final HashMap<String, NetworkUtil> activeClientMap;
-    private final HashMap<String, ClientInfo> clientInfoMap;
+    private final Map<String, NetworkUtil> activeClientMap;
+    private final Map<String, ClientInfo> clientInfoMap;
     private ServerMessageDump serverMessageDump;
     private final ServerBufferState serverBufferState;
     private Socket clientSocket;
     Thread t;
 
-    public ServerLoginThread(HashMap<String, NetworkUtil> activeClientMap, HashMap<String, ClientInfo> clientInfoMap,
+    public ServerLoginThread(Map<String, NetworkUtil> activeClientMap, Map<String, ClientInfo> clientInfoMap,
                              ServerMessageDump serverMessageDump, ServerBufferState serverBufferState, Socket clientSocket) {
         this.activeClientMap = activeClientMap;
         this.clientInfoMap = clientInfoMap;

@@ -41,11 +41,8 @@ public class Client {
                 nu.closeConnection();
                 System.exit(0);
             }
-
             // login successful, open read and write thread
             start(scr);
-//            new ClientReadThread(nu);
-//            new ClientWriteThread(nu);
         } catch (Exception e) {
             System.out.println(e);
         }
@@ -109,7 +106,6 @@ public class Client {
         }
 
         String command = tokens.get(0).trim();
-        // file -> upload, download -> self, otherDownload(for download only)
         if (command.equalsIgnoreCase("file")) {
             if (tokens.get(1).trim().equalsIgnoreCase("upload")) {
                 String fileType = tokens.get(2).trim();
@@ -130,7 +126,6 @@ public class Client {
                     System.out.println("File does not exist");
                     return false;
                 }
-//
             } else if (tokens.get(1).trim().equalsIgnoreCase("download")) {
                 if (tokens.size() == 5) { // download self file
                     String fileType = tokens.get(3).trim();
@@ -143,7 +138,7 @@ public class Client {
                         e.printStackTrace();
                         return false;
                     }
-                } else {  // download others file
+                } else if(tokens.size() == 4) {  // download others file
                     String clientName = tokens.get(2).trim();
                     String fileName = tokens.get(3).trim();
 
@@ -154,6 +149,9 @@ public class Client {
                         e.printStackTrace();
                         return false;
                     }
+                } else {
+                    System.out.println("Invalid command");
+                    return false;
                 }
             } else if (tokens.get(1).trim().equalsIgnoreCase("lookUpOthers")) {
                 try {
@@ -211,7 +209,7 @@ public class Client {
             if (file.exists()) {
                 long fileSize = file.length();
                 try {
-                    System.out.println("Sending file upload request to respond to request");
+                    System.out.println("Sending file upload request as response to request");
                     nu.write(new InitiateFileUpload(fileName, fileSize, requestId));
                     return true;
                 } catch (IOException e) {
@@ -222,7 +220,6 @@ public class Client {
                 System.out.println("File does not exist");
                 return false;
             }
-
         } else if (command.equalsIgnoreCase("logout")) {
             try {
                 nu.write("Logout");

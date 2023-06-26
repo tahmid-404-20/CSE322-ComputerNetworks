@@ -1,6 +1,5 @@
 package server;
 
-import client.Client;
 import util.NetworkUtil;
 import util.fileDownload.*;
 import util.fileUpload.*;
@@ -11,23 +10,20 @@ import util.message.SendRequest;
 
 import java.io.*;
 import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class ServerReadThread implements Runnable {
     String clientName;
     NetworkUtil nu;
     Thread t;
     ServerMessageDump serverMessageDump;
-    private HashMap<String, NetworkUtil> activeClientMap;
+    private Map<String, NetworkUtil> activeClientMap;
     private ServerBufferState serverBufferState;
-    private HashMap<String, ClientInfo> clientInfoMap;
+    private Map<String, ClientInfo> clientInfoMap;
     private CurrentFileUploadInfo currentFileUploadInfo;
 
-    public ServerReadThread(String clientName, NetworkUtil nu, HashMap<String, NetworkUtil> activeClientMap,
-                            ServerBufferState serverBufferState, HashMap<String, ClientInfo> clientInfoMap,
+    public ServerReadThread(String clientName, NetworkUtil nu, Map<String, NetworkUtil> activeClientMap,
+                            ServerBufferState serverBufferState, Map<String, ClientInfo> clientInfoMap,
                             ServerMessageDump serverMessageDump) {
 
         this.clientName = clientName;

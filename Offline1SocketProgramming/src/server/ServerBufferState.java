@@ -8,24 +8,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerBufferState {
-    long occupiedSize;
-    Map<Integer, List<BufferChunk>> currentBuffer;  // map between fileId and list of byte arrays
+    volatile long occupiedSize;
+    final Map<Integer, List<BufferChunk>> currentBuffer;  // map between fileId and list of byte arrays
 
     public ServerBufferState() {
-        currentBuffer = new HashMap<>();
+        currentBuffer = new ConcurrentHashMap<>();
         occupiedSize = 0;
     }
 
-    public void addChunk(int fileId, byte[] bytes, int chunkSize) {
+    void addChunk(int fileId, byte[] bytes, int chunkSize) {
         // check whether first transmission, if yes, initialize the list
         if (!currentBuffer.containsKey(fileId)) {
             currentBuffer.put(fileId, new ArrayList<>());
         }
 
         currentBuffer.get(fileId).add(new BufferChunk(bytes, chunkSize));
-        occupiedSize += chunkSize;
+        synchronized (this) {
+            occupiedSize += chunkSize;
+        }
     }
 
     boolean isFileComplete(int fileId, long fileSize) {
@@ -56,7 +59,9 @@ public class ServerBufferState {
                 totalBytesRemoved += bufferChunk.chunkSize;
             }
 
-            occupiedSize -= totalBytesRemoved;
+            synchronized (this) {
+                occupiedSize -= totalBytesRemoved;
+            }
             currentBuffer.remove(fileId);
         }
     }

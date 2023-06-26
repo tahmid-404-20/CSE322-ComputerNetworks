@@ -3,20 +3,24 @@ package server;
 import util.message.Message;
 
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerMessageDump {
-    long noOfMessages;
-    HashMap<Long, Message> messageHashMap;
-    HashMap<String, ClientInfo> clientInfoMap;
+    volatile long noOfMessages;
+    Map<Long, Message> messageHashMap;
+    Map<String, ClientInfo> clientInfoMap;
 
-    public ServerMessageDump(HashMap<String, ClientInfo> clientInfoMap) {
+    public ServerMessageDump(Map<String, ClientInfo> clientInfoMap) {
         noOfMessages = 0;
-        messageHashMap = new HashMap<>();
+        messageHashMap = new ConcurrentHashMap<>();
         this.clientInfoMap = clientInfoMap;
     }
 
     public void addMessage(Message message) {
-        noOfMessages++;
+        synchronized (this) {
+            noOfMessages++;
+        }
         message.requestId = noOfMessages;
         messageHashMap.put(noOfMessages, message);
 

@@ -24,17 +24,4 @@ public class ClientInfo {
     public List<Message> getUnreadMessages() {
         return unreadMessages;
     }
-
-    public void makeOnline() {
-        isOnline = true;
-    }
-
-    public void makeOffline() {
-        isOnline = false;
-    }
-
-    public boolean isOnline() {
-        return isOnline;
-    }
-
 }

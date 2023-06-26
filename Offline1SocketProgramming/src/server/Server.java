@@ -9,6 +9,8 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Server {
 
@@ -22,15 +24,15 @@ public class Server {
     }
 
     private ServerSocket serverSocket;
-    private final HashMap<String, NetworkUtil> activeClientMap;
-    private final HashMap<String, ClientInfo> clientInfoMap;
+    private final Map<String, NetworkUtil> activeClientMap;
+    private final Map<String, ClientInfo> clientInfoMap;
     private ServerMessageDump serverMessageDump;
     private final ServerBufferState serverBufferState;
 
     Server() {
-        activeClientMap= new HashMap<>();
+        activeClientMap= new ConcurrentHashMap<>();
         serverBufferState = new ServerBufferState();
-        clientInfoMap = new HashMap<>();
+        clientInfoMap = new ConcurrentHashMap<>();
         serverMessageDump = new ServerMessageDump(clientInfoMap);
         gatherClientInfo();
 
