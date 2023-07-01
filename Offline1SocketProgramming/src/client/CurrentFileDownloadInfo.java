@@ -32,6 +32,5 @@ public class CurrentFileDownloadInfo {
         } catch (IOException e) {
             System.out.println("Exception in CurrentFileDownloadInfo.saveFile() : " + e);
         }
-
     }
 }

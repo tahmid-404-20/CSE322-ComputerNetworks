@@ -249,6 +249,12 @@ public class Client {
             nu.write(new FileUploadChunk(fileId, buffer, bytesRead));
             buffer = new byte[chunkSize];  // otherwise the last chunk will be sent multiple times
 
+            // for testing disconnection while file upload, uncomment the code below
+//            try {
+//                Thread.sleep(1000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
             nu.socket.setSoTimeout(Client.SOCKET_TIMEOUT);
             try {
                 Object o = nu.read();
