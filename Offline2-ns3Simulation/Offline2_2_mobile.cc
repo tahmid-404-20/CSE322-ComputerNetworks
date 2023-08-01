@@ -37,15 +37,8 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("Offline2");
+NS_LOG_COMPONENT_DEFINE("Offline2-Mobile");
 
-void
-CourseChange(std::string context, Ptr<const MobilityModel> model)
-{
-    Vector position = model->GetPosition();
-    NS_LOG_UNCOND(context <<
-    " x = " << position.x << ", y = " << position.y);
-}
 
 Ptr<const RandomWalk2dMobilityModel> testModel;
 void
@@ -95,21 +88,17 @@ main(int argc, char* argv[])
     int nFlows = 10;
     int nPacketsPerSecond = 100;
     int speed = 5;   // in m/s
-    int coverageMutliplier = 1;  // in multiple of Tx_Range
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("nNodes", "Number of sender-receivers", nNodes);
     cmd.AddValue("nFlows", "Number of flows", nFlows);
     cmd.AddValue("nPacketsPerSecond", "Number of packets per second", nPacketsPerSecond);
     cmd.AddValue("speed", "Speed of sender-receivers", speed);
-    cmd.AddValue("coverageMutliplier", "Coverage area multiplier", coverageMutliplier);
 
     cmd.Parse(argc, argv);
 
     if (verbose)
     {
-        LogComponentEnable("UdpEchoClientApplication", LOG_LEVEL_INFO);
-        LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
         LogComponentEnable("OnOffApplication", LOG_LEVEL_INFO);
         LogComponentEnable("PacketSink", LOG_LEVEL_INFO);
     }
@@ -127,7 +116,7 @@ main(int argc, char* argv[])
     NodeContainer apNodes;
     apNodes.Create(2);    
     PointToPointHelper pointToPoint;
-    pointToPoint.SetDeviceAttribute("DataRate", StringValue("10Mbps"));
+    pointToPoint.SetDeviceAttribute("DataRate", StringValue("17Mbps"));
     pointToPoint.SetChannelAttribute("Delay", StringValue("2ms"));
     NetDeviceContainer p2pDevices;
     p2pDevices = pointToPoint.Install(apNodes);
@@ -137,7 +126,7 @@ main(int argc, char* argv[])
     NodeContainer senderNodes;
     senderNodes.Create(nSenders);
     NodeContainer senderApNode = apNodes.Get(0);
-    
+
     YansWifiChannelHelper senderChannel = YansWifiChannelHelper::Default();
     YansWifiPhyHelper senderPhy;
     senderPhy.SetChannel(senderChannel.Create());
@@ -323,7 +312,11 @@ main(int argc, char* argv[])
     Simulator::Run();
     Simulator::Destroy();
 
-    std::cout << "\nNetwork Throughput: " << networkThroughput << " Mbit/s Packet Delivery Ratio: " << packetDeliveryRatio << std::endl;
+    // std::cout << "\nNetwork Throughput: " << networkThroughput << " Mbit/s Packet Delivery Ratio: " << 
+    // ((double)totalPacketsReceived/(double)totalPacketsTransmitted)*100 << std::endl;
+
+    std::cout << networkThroughput << "," << 
+    ((double)totalPacketsReceived/(double)totalPacketsTransmitted)*100;
 
     return 0;
 }

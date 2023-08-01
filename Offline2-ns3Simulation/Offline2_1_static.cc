@@ -37,32 +37,13 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("Offline2");
-
-void
-CourseChange(std::string context, Ptr<const MobilityModel> model)
-{
-    Vector position = model->GetPosition();
-    NS_LOG_UNCOND(context <<
-    " x = " << position.x << ", y = " << position.y);
-}
-
-Ptr<const RandomWalk2dMobilityModel> testModel;
-void
-SeePositionChange()
-{
-    Vector position = testModel->GetPosition();
-    NS_LOG_UNCOND("For receiver 0" <<
-    " x = " << position.x << ", y = " << position.y);
-    Simulator::Schedule(Seconds(1), &SeePositionChange);
-}
+NS_LOG_COMPONENT_DEFINE("Offline2-Static");
 
 uint128_t totalBytesReceived = 0;
 uint128_t totalPacketsTransmitted = 0;
 uint128_t totalPacketsReceived = 0;
 uint32_t packetSize;
 
-double_t packetDeliveryRatio = 0.0;
 double_t networkThroughput = 0.0;
 
 // Trace sources
@@ -73,7 +54,6 @@ PacketReceived (Ptr< const Packet > packet, const Address &address)
     networkThroughput = ((totalBytesReceived/Simulator::Now().GetSeconds())*8)/1e6;   // in Mbps
 
     totalPacketsReceived += packet->GetSize()/packetSize;    // sometimes, this gives more than 1024
-    packetDeliveryRatio = ((double)totalPacketsReceived/(double)totalPacketsTransmitted)*100;
 }
 
 void 
@@ -94,22 +74,18 @@ main(int argc, char* argv[])
     int nNodes = 20;
     int nFlows = 10;
     int nPacketsPerSecond = 100;
-    int speed = 5;   // in m/s
-    int coverageMutliplier = 1;  // in multiple of Tx_Range
+    int coverageMultiplier = 2;  // in multiple of Tx_Range
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("nNodes", "Number of sender-receivers", nNodes);
     cmd.AddValue("nFlows", "Number of flows", nFlows);
     cmd.AddValue("nPacketsPerSecond", "Number of packets per second", nPacketsPerSecond);
-    cmd.AddValue("speed", "Speed of sender-receivers", speed);
-    cmd.AddValue("coverageMutliplier", "Coverage area multiplier", coverageMutliplier);
+    cmd.AddValue("coverageMultiplier", "Coverage area multiplier", coverageMultiplier);
 
     cmd.Parse(argc, argv);
 
     if (verbose)
     {
-        LogComponentEnable("UdpEchoClientApplication", LOG_LEVEL_INFO);
-        LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
         LogComponentEnable("OnOffApplication", LOG_LEVEL_INFO);
         LogComponentEnable("PacketSink", LOG_LEVEL_INFO);
     }
@@ -118,16 +94,11 @@ main(int argc, char* argv[])
     int nReceivers;
     nSenders = nReceivers = nNodes / 2;
 
-    if(nNodes > (2*nFlows)) {
-        nFlows = nNodes / 2;
-    }
-
-
     // setting up accessPoints and in between p2p connection
     NodeContainer apNodes;
     apNodes.Create(2);    
     PointToPointHelper pointToPoint;
-    pointToPoint.SetDeviceAttribute("DataRate", StringValue("10Mbps"));
+    pointToPoint.SetDeviceAttribute("DataRate", StringValue("17Mbps"));
     pointToPoint.SetChannelAttribute("Delay", StringValue("2ms"));
     NetDeviceContainer p2pDevices;
     p2pDevices = pointToPoint.Install(apNodes);
@@ -139,7 +110,7 @@ main(int argc, char* argv[])
     NodeContainer senderApNode = apNodes.Get(0);
     // modification of coverage area
     uint32_t Tx_RangeDefault = 5;
-    uint32_t coverageArea = Tx_RangeDefault * coverageMutliplier;
+    uint32_t coverageArea = Tx_RangeDefault * coverageMultiplier;
     Config::SetDefault("ns3::RangePropagationLossModel::MaxRange", DoubleValue(coverageArea));    
     YansWifiChannelHelper senderChannel = YansWifiChannelHelper::Default();
     senderChannel.AddPropagationLoss("ns3::RangePropagationLossModel");
@@ -167,7 +138,7 @@ main(int argc, char* argv[])
 //  *
 //  *
 
-    double senderYMax = 0.8 * coverageArea;
+    double senderYMax = 0.96*coverageArea;    // ~sqrt(25-1)
     double senderDeltaY = 2.0*senderYMax / (nSenders-1);
     double senderApX = 1.0;
 
@@ -231,7 +202,7 @@ main(int argc, char* argv[])
 //                  *
 //                  *
 
-    double receiverYMax = 0.8 * coverageArea;
+    double receiverYMax = 0.96*coverageArea; 
     double receiverDeltaY = 2.0*receiverYMax / (nReceivers-1);
     double receiverApX = 0.0;
 
@@ -250,9 +221,6 @@ main(int argc, char* argv[])
 
     receiverMobility.Install(receiverNodes);
     receiverMobility.Install(receiverApNode);
-
-    // for showing mobility
-    testModel = receiverNodes.Get(0)->GetObject<RandomWalk2dMobilityModel>();
 
     if(debug) {
         std::cout << "Receiver Positions" << std::endl;
@@ -285,12 +253,14 @@ main(int argc, char* argv[])
     address.SetBase("10.1.2.0", "255.255.255.0");
     Ipv4InterfaceContainer receiverInterfaces;
     receiverInterfaces = address.Assign(receiverDevices);
-    address.Assign(receiverApDevices);
+    Ipv4InterfaceContainer receiverApInterfaces;
+    receiverApInterfaces = address.Assign(receiverApDevices);
 
 
     /* Configure TCP Options */
     Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(packetSize));
 
+    if(debug) std::cout << "Creating App" << std::endl;
     uint16_t port = 9;
     uint32_t portAddition = 0;
     uint32_t index = 0;
@@ -315,22 +285,45 @@ main(int argc, char* argv[])
         Ptr<OnOffApplication> onoffApp = StaticCast<OnOffApplication>(senderApp.Get(0));
         onoffApp->TraceConnectWithoutContext("Tx", MakeCallback(&PacketTransmitted));
 
-        sinkApp.Start(Seconds(0.0));
+        sinkApp.Start(Seconds(0.2));
         senderApp.Start(Seconds(1.0));
     }
+
+    if(debug) std::cout << "Done creating" << std::endl;
+
+    if(debug) std::cout << "Receiver 22-0 ip: " << receiverInterfaces.GetAddress(0) << std::endl;
+    if(debug) std::cout << "Receiver 26-0 ip: " << receiverInterfaces.GetAddress(4) << std::endl;
+    if(debug) std::cout << "Receiver Ap ip: " << receiverApInterfaces.GetAddress(0) << std::endl;
+
+    if (verbose)
+    {
+        receiverPhy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
+        receiverPhy.EnablePcap("scratch/offline_static", receiverApDevices.Get(0));
+        receiverPhy.EnablePcap("scratch/offline_static", receiverDevices.Get(0));
+        receiverPhy.EnablePcap("scratch/offline_static", receiverDevices.Get(4));
+        senderPhy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
+        senderPhy.EnablePcap("scratch/offline_static", senderApDevices.Get(0));
+        senderPhy.EnablePcap("scratch/offline_static", senderDevices.Get(0));
+        senderPhy.EnablePcap("scratch/offline_static", senderDevices.Get(4));
+    }
+
     
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
-    if(debug) {
-        Simulator::Schedule(Seconds(1), &SeePositionChange);
-    }
     Simulator::Stop(Seconds(10.0));
 
 
     Simulator::Run();
     Simulator::Destroy();
 
-    std::cout << "\nNetwork Throughput: " << networkThroughput << " Mbit/s Packet Delivery Ratio: " << packetDeliveryRatio << std::endl;
+    // std::cout << "Total Packets Transmitted: " << (double)totalPacketsTransmitted  << "total received " << (double)totalPacketsReceived << std::endl;
+
+    // std::cout << "\nNetwork Throughput: " << networkThroughput << " Mbit/s Packet Delivery Ratio: " <<
+    // ((double)totalPacketsReceived/(double)totalPacketsTransmitted)*100 << std::endl;
+
+
+    std::cout << networkThroughput << "," << 
+    ((double)totalPacketsReceived/(double)totalPacketsTransmitted)*100;
 
     return 0;
 }
