@@ -1,7 +1,7 @@
 #!/bin/bash
 
-file1="Offline2_1_static.cc"
-file2="Offline2_2_mobile.cc"
+file1="1905002_1.cc"
+file2="1905002_2.cc"
 
 rm -rf "scratch/static"
 rm -rf "scratch/mobile"
@@ -73,7 +73,7 @@ generate_gnuplot_script() {
     cat > gnuplot_script.gp <<EOF
 set terminal png size 640,480
 set output "${output_png}"
-plot "${data_file}" using 1:2 title '${param} VS ${y_label}' with linespoints 
+plot "${data_file}" using 1:2 title '${param} VS ${y_label}' with linespoints
 EOF
 
     gnuplot gnuplot_script.gp
@@ -94,7 +94,7 @@ do
     echo "Running $file1 with $nNodes nodes"
     switch="--nNodes=$nNodes --nFlows=$nFlows"
     output_str="$(./ns3 run "$file1 $switch")"
-    
+
     IFS=',' read -ra ADDR <<< "$output_str"
     throughput="${ADDR[0]}"
     ratio="${ADDR[1]}"
@@ -144,7 +144,7 @@ do
     echo "Running $file2 with $nNodes nodes"
     switch="--nNodes=$nNodes --nFlows=$nFlows"
     output_str="$(./ns3 run "$file2 $switch")"
-    
+
     IFS=',' read -ra ADDR <<< "$output_str"
     throughput="${ADDR[0]}"
     ratio="${ADDR[1]}"
