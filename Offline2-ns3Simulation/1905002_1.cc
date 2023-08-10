@@ -31,7 +31,7 @@
 //  s2              Ap               AP                 r2
 //  s3              n0 ------------- n1                 r3
 //  s4                 Point-to-Point                   r4
-//  s5                 10 Mbps, 2ms                     r5
+//  s5                 17 Mbps, 2ms                     r5
 //  ....                                               ....
 //
 
@@ -112,7 +112,8 @@ main(int argc, char* argv[])
     // modification of coverage area
     uint32_t Tx_RangeDefault = 5;
     uint32_t coverageArea = Tx_RangeDefault * coverageMultiplier;
-    Config::SetDefault("ns3::RangePropagationLossModel::MaxRange", DoubleValue(coverageArea));    
+    Config::SetDefault("ns3::RangePropagationLossModel::MaxRange", DoubleValue(coverageArea));
+
     YansWifiChannelHelper senderChannel = YansWifiChannelHelper::Default();
     senderChannel.AddPropagationLoss("ns3::RangePropagationLossModel");
 
@@ -139,7 +140,7 @@ main(int argc, char* argv[])
 //  *
 //  *
 
-    double senderYMax = 0.96*coverageArea;    // ~sqrt(25-1)
+    double senderYMax = 0.96*coverageArea;   
     double senderDeltaY = 2.0*senderYMax / (nSenders-1);
     double senderApX = 1.0;
 
@@ -317,7 +318,8 @@ main(int argc, char* argv[])
     Simulator::Stop(Seconds(10.0));
 
     AnimationInterface anim("scratch/static.xml");
-    anim.SetMaxPktsPerTraceFile(50000000);// if u want 50000packets per trace file
+    anim.SetMaxPktsPerTraceFile(50000000);
+    
     Simulator::Run();
     Simulator::Destroy();
 
