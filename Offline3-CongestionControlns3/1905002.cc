@@ -216,21 +216,22 @@ int
 main(int argc, char* argv[])
 {
     bool verbose = false;
-    bool debug = false;
+    // bool debug = false;
 
     packetSize = 1024;          // in bytes
 
     int bottleneckDelay = 100;   // in ms
+    double simulatorRunningTime = 50.0; // in seconds
+    std::string sendingRate = "1Gbps";
+
     int bottleneckDataRate = 50; // in Mbps
     int errorExp = 6;            // in exponent of 10
-
-    double simulatorRunningTime = 10.0; // in seconds
-
-    std::string sendingRate = "1Gbps";
+    std::string congestionControl = "ns3::TcpAdaptiveReno";
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("bRate", "BottleNeckDataRate", bottleneckDataRate);
-    cmd.AddValue("errorExp", "10^[-errorExp]", errorExp);    
+    cmd.AddValue("errorExp", "10^[-errorExp]", errorExp);
+    cmd.AddValue("congAlg", "Congestion Control Algorithm", congestionControl);   
 
     cmd.Parse(argc, argv);
 
@@ -266,12 +267,12 @@ main(int argc, char* argv[])
     dumbbell.m_routerDevices.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
 
     // set congestion control
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpNewReno"));
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue(congestionControl));
     InternetStackHelper stackFlow1;
     stackFlow1.Install(dumbbell.GetLeft(0));
     stackFlow1.Install(dumbbell.GetRight(0));
 
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpWestwoodPlus"));
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpNewReno"));
     InternetStackHelper stackFlow2;
     stackFlow2.Install(dumbbell.GetLeft(1));
     stackFlow2.Install(dumbbell.GetRight(1));
@@ -322,21 +323,70 @@ main(int argc, char* argv[])
     }                           
     
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
+    
 
     Simulator::Stop(Seconds(10.0));
     Simulator::Run();
 
-    // monitor->CheckForLostPackets();
+    double totalBytesReceived = 0;
+
+    // flow1  0(S) ---------->  0(R)
+    // flow2  0(S) <----------  0(R)
+    // flow3  1(S) ---------->  1(R)    
+    // flow4  1(S) <----------  1(R)
+
+    double flow1TotalBytes = 0;  
+    double flow2TotalBytes = 0;
+    double flow3TotalBytes = 0;
+    double flow4TotalBytes = 0;
+
+    monitor->CheckForLostPackets();
     Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier>(flowHelper.GetClassifier());
     std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats();
     for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator iter = stats.begin(); iter != stats.end(); ++iter) {
         Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(iter->first);
 
-        std::cout << "Flow " << iter->first << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")"
-                << "  Throughput: " << iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024 << " Kbps"
-                << std::endl;
+        // if source address is left node of flow1, update flow1TotalBytes
+        if(t.sourceAddress == dumbbell.GetLeftIpv4Address(0))
+        {   
+            //std::cout << "Updating flow1TotalBytes" << std::endl;
+            flow1TotalBytes += iter->second.rxBytes;
+        }
+        else if(t.sourceAddress == dumbbell.GetRightIpv4Address(0))
+        {
+            //std::cout << "Updating flow2TotalBytes" << std::endl;
+            flow2TotalBytes += iter->second.rxBytes;
+        }
+        else if(t.sourceAddress == dumbbell.GetLeftIpv4Address(1))
+        {
+            //std::cout << "Updating flow3TotalBytes" << std::endl;
+            flow3TotalBytes += iter->second.rxBytes;
+        }
+        
+        else if(t.sourceAddress == dumbbell.GetRightIpv4Address(1))
+        {
+            //std::cout << "Updating flow4TotalBytes" << std::endl;
+            flow4TotalBytes += iter->second.rxBytes;
+        }
+
+        // std::cout << "Flow " << iter->first << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")"
+        //         << "  Throughput: " << iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024 << " Kbps"
+        //         << std::endl;
+
+        totalBytesReceived += iter->second.rxBytes;
+        
     }
-    
+
+    // std::cout << "Average Throughput: " << (totalBytesReceived / (4.0 * 1024 * simulatorRunningTime)) * 8.0 << " Kbps" << std::endl;
+
+    double pair1Throughput = (flow1TotalBytes + flow2TotalBytes) / (2.0 * 1024 * simulatorRunningTime) * 8.0;
+    double pair2Throughput = (flow3TotalBytes + flow4TotalBytes) / (2.0 * 1024 * simulatorRunningTime) * 8.0;
+
+    // std::cout << "Pair1 Throughput: " << pair1Throughput << " Kbps" << std::endl;
+    // std::cout << "Pair2 Throughput: " << pair2Throughput << " Kbps" << std::endl;
+
+    std::cout << pair1Throughput << "," << pair2Throughput << std::endl;
+
     Simulator::Destroy();
 
     return 0;
