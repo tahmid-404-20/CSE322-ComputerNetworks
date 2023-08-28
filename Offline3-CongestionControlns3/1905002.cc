@@ -27,14 +27,12 @@
 
 // Default Network Topology
 //      
-//      Wifi 10.1.1.0(S)                   Wifi 10.1.3.0(M)
-//  s1                  10.1.2.0                        r1
-//  s2              Ap               AP                 r2
-//  s3              n0 ------------- n1                 r3
-//  s4                 Point-to-Point                   r4
-//  s5                 17 Mbps, 2ms                     r5
-//  ....                                               ....
-//
+//       10.1.1.0                           10.1.3.0
+//         (p2p)           10.1.2.0            (p2p)                
+//  s0                                                 r0
+//                  bn0 ------------- bn1                 
+//  s1                Point-to-Point                   r1
+
 
 
 using namespace ns3;
@@ -177,10 +175,9 @@ TestApp::SendPacket()
     m_socket->Send(packet);
 
     // if (++m_packetsSent < m_nPackets) --- removed this line coz we want to send packets continuously
-    if (1)
-    {
+    // {
         ScheduleTx();
-    }
+    // }
 }
 
 void
@@ -195,13 +192,6 @@ TestApp::ScheduleTx()
 
 
 NS_LOG_COMPONENT_DEFINE("Offline3-Task1");
-
-uint128_t totalBytesReceived = 0;
-uint128_t totalPacketsTransmitted = 0;
-uint128_t totalPacketsReceived = 0;
-uint32_t packetSize;
-
-double_t networkThroughput = 0.0;
 
 // trace sources
 static void
@@ -218,10 +208,10 @@ main(int argc, char* argv[])
     bool verbose = false;
     // bool debug = false;
 
-    packetSize = 1024;          // in bytes
+    uint32_t packetSize = 1024;          // in bytes
 
     int bottleneckDelay = 100;   // in ms
-    double simulatorRunningTime = 50.0; // in seconds
+    double simulatorRunningTime = 10.0; // in seconds
     std::string sendingRate = "1Gbps";
 
     int bottleneckDataRate = 50; // in Mbps
@@ -325,7 +315,7 @@ main(int argc, char* argv[])
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
     
 
-    Simulator::Stop(Seconds(10.0));
+    Simulator::Stop(Seconds(simulatorRunningTime));
     Simulator::Run();
 
     double totalBytesReceived = 0;
@@ -335,10 +325,15 @@ main(int argc, char* argv[])
     // flow3  1(S) ---------->  1(R)    
     // flow4  1(S) <----------  1(R)
 
-    double flow1TotalBytes = 0;  
-    double flow2TotalBytes = 0;
-    double flow3TotalBytes = 0;
-    double flow4TotalBytes = 0;
+    double flow1Throughput = 0.0;
+    double flow2Throughput = 0.0;
+    double flow3Throughput = 0.0;
+    double flow4Throughput = 0.0;
+
+    // for jain's calculation
+    double totalThroughput = 0.0;
+    double totalThroughputSquare = 0.0;
+    int count = 0;
 
     monitor->CheckForLostPackets();
     Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier>(flowHelper.GetClassifier());
@@ -350,23 +345,32 @@ main(int argc, char* argv[])
         if(t.sourceAddress == dumbbell.GetLeftIpv4Address(0))
         {   
             //std::cout << "Updating flow1TotalBytes" << std::endl;
-            flow1TotalBytes += iter->second.rxBytes;
+            flow1Throughput = iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024;
+            totalThroughput += flow1Throughput;
+            totalThroughputSquare += flow1Throughput * flow1Throughput;
         }
         else if(t.sourceAddress == dumbbell.GetRightIpv4Address(0))
         {
             //std::cout << "Updating flow2TotalBytes" << std::endl;
-            flow2TotalBytes += iter->second.rxBytes;
+            flow2Throughput = iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024;
+            totalThroughput += flow2Throughput;
+            totalThroughputSquare += flow2Throughput * flow2Throughput;
         }
         else if(t.sourceAddress == dumbbell.GetLeftIpv4Address(1))
         {
             //std::cout << "Updating flow3TotalBytes" << std::endl;
-            flow3TotalBytes += iter->second.rxBytes;
+            flow3Throughput = iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024;
+            totalThroughput += flow3Throughput;
+            totalThroughputSquare += flow3Throughput * flow3Throughput;
+
         }
         
         else if(t.sourceAddress == dumbbell.GetRightIpv4Address(1))
         {
             //std::cout << "Updating flow4TotalBytes" << std::endl;
-            flow4TotalBytes += iter->second.rxBytes;
+            flow4Throughput = iter->second.rxBytes * 8.0 / iter->second.timeLastRxPacket.GetSeconds() / 1024;
+            totalThroughput += flow4Throughput;
+            totalThroughputSquare += flow4Throughput * flow4Throughput;
         }
 
         // std::cout << "Flow " << iter->first << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")"
@@ -374,18 +378,22 @@ main(int argc, char* argv[])
         //         << std::endl;
 
         totalBytesReceived += iter->second.rxBytes;
+
+        count++;
         
     }
 
     // std::cout << "Average Throughput: " << (totalBytesReceived / (4.0 * 1024 * simulatorRunningTime)) * 8.0 << " Kbps" << std::endl;
 
-    double pair1Throughput = (flow1TotalBytes + flow2TotalBytes) / (2.0 * 1024 * simulatorRunningTime) * 8.0;
-    double pair2Throughput = (flow3TotalBytes + flow4TotalBytes) / (2.0 * 1024 * simulatorRunningTime) * 8.0;
+    double pair1Throughput = (flow1Throughput + flow2Throughput);
+    double pair2Throughput = (flow3Throughput + flow4Throughput);
 
     // std::cout << "Pair1 Throughput: " << pair1Throughput << " Kbps" << std::endl;
     // std::cout << "Pair2 Throughput: " << pair2Throughput << " Kbps" << std::endl;
 
-    std::cout << pair1Throughput << "," << pair2Throughput << std::endl;
+    double jainsIndex = (totalThroughput * totalThroughput) / (count * totalThroughputSquare);
+
+    std::cout << pair1Throughput << "," << pair2Throughput << "," << jainsIndex << std::endl;
 
     Simulator::Destroy();
 
