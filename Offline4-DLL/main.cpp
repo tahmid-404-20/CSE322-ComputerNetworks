@@ -239,6 +239,7 @@ string add_and_print_checksum(string serialized_string, string g) {
   }
 
   // print serialized string with checksum, the checksum bits are in cyan blue
+  cout << "\ndata bits after appending CRC checksum <sent-frame>:" << endl;
   for (int i = 0; i < n; i++) {
     if (i > n - l) {
       cout << "\033[34m" << serialized_string[i] << "\033[0m";
@@ -264,7 +265,7 @@ vector<string> check_and_remove_checksum(string received_string, string g,
     }
   }
 
-  cout << "result of CRC checksum matching: ";
+  cout << "\nresult of CRC checksum matching: ";
   if (no_error) {
     cout << "no error detected" << endl;
   } else {
@@ -295,6 +296,7 @@ vector<string> check_and_remove_checksum(string received_string, string g,
 int main() {
   string str, generator_polynomial;
   int m;
+  double p;
 
   cout << "enter data string: ";
   getline(cin, str);
@@ -302,35 +304,71 @@ int main() {
   cout << "enter number of data bytes in a row <m>: ";
   cin >> m;
 
+  cout << "enter probability <p>: ";
+  cin >> p;
+
   cout << "enter generator polynomial: ";
   cin >> generator_polynomial;
 
   string padded_string = pad_string(str, m);
-  cout << "Padded String: " << padded_string << endl;
+  cout << "\n\ndata string after padding: " << padded_string << endl;
 
   vector<string> data_block = split_binary(string_to_binary(padded_string), m);
-  cout << "Data block: " << endl;
+  cout << "\ndata block <ascii code of m characters per row>: " << endl;
   print_binary(data_block);
 
   vector<string> data_block_with_redundancy_bits =
       generate_redudancy_bit_string(data_block, m);
-  cout << "Data block with redundancy bits: " << endl;
+  cout << "\ndata block after adding check bits:" << endl;
   print_redundant_bit_string(data_block_with_redundancy_bits);
 
   string serialized_string =
       columnwise_serialize(data_block_with_redundancy_bits);
-  cout << "Serialized string: " << endl;
+  cout << "\ndata bits after column-wise serialization:" << endl;
   cout << serialized_string << endl;
 
   string checksum_serialized_string =
       add_and_print_checksum(serialized_string, generator_polynomial);
 
-  //   cout << verify_checksum("1000110", "1011");
-  vector<string> received_string_rowwise = check_and_remove_checksum(
-      checksum_serialized_string, generator_polynomial,
-      data_block_with_redundancy_bits[0].length());
+  // p is the probability of error, generate a random number between 0.0 and 1.0
+  // , if it is less than p, flip the bit and add the index to the error_indexes
+  // vector
+  vector<int> error_indexes;
+  string received_string = checksum_serialized_string;
+  cout << "\nreceived frame:" << endl;
+  for (int i = 0; i < received_string.length(); i++) {
+    double random_number = (double)rand() / RAND_MAX;
+    if (random_number < p) {
+      received_string[i] = (received_string[i] == '1') ? '0' : '1';
+      error_indexes.push_back(i);
+      cout << "\033[31m" << received_string[i] << "\033[0m";
+    } else {
+      cout << received_string[i];
+    }
+  }
 
-    
-  //   cout << "\033[1;31mbold red text\033[0m\n";
+  cout << endl;
+
+  vector<string> received_string_rowwise =
+      check_and_remove_checksum(received_string, generator_polynomial,
+                                data_block_with_redundancy_bits[0].length());
+
+  cout << "\ndata block after removing CRC checksum bits:" << endl;
+  int error_index = 0;
+  for (int i = 0; i < received_string_rowwise.size(); i++) {
+    for (int j = 0; j < received_string_rowwise[i].length(); j++) {
+      if (error_indexes[error_index] / received_string_rowwise.size() == j &&
+          error_indexes[error_index] % received_string_rowwise.size() == i) {
+        cout << "\033[31m" << received_string_rowwise[i][j] << "\033[0m";
+        error_index++;
+      } else {
+        cout << received_string_rowwise[i][j];
+      }
+    }
+    cout << endl;
+  }
+
+  cout << endl;
+
   return 0;
 }
