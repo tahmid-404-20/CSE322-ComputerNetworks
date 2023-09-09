@@ -34,6 +34,18 @@ string string_to_binary(string str) {
   return binary;
 }
 
+string binary_to_string(string binary) {
+  string str = "";
+  for (int i = 0; i < binary.length(); i += 8) {
+    int c = 0;
+    for (int j = 0; j < 8; j++) {
+      c += (binary[i + j] - '0') * (1 << (7 - j));  // just simple weighted sum
+    }
+    str += (char)c;
+  }
+  return str;
+}
+
 void print_binary(string binary, int m) {
   for (int i = 0; i < binary.length(); i++) {
     cout << binary[i];
@@ -293,6 +305,64 @@ vector<string> check_and_remove_checksum(string received_string, string g,
   return received_string_rowwise;
 }
 
+
+string correct_hamming_code(string str, int m) {
+  int r = number_of_redundancy_bits(m);
+  int n = str.length();
+
+  bool error_bits[r] = {false};
+  // now calculate the redundancy bits
+  for (int i = 0; i < r; i++) {
+    int step =
+        1 << i; // for r1, we go by 1 step, for r2, we go by 2 steps, etc.
+
+    bool redundancy_bit = false;
+    bool flag = false;
+    for (int j = (1 << i) - 1; j < n; j += step * 2) {
+      for (int k = 0; k < step; k++) {
+        if(!flag) { // avoiding the parity itself
+          flag = true;
+          continue;
+        }
+        if (str[j + k] == '1') {
+          redundancy_bit = !redundancy_bit;
+        }
+      }
+    }
+    // cout << "r" << i + 1 << ": " << redundancy_bit << endl;
+    error_bits[i] = redundancy_bit;
+  }
+
+  int error_index = 0;
+  for (int i = 0; i < r; i++) {
+    int k = (1 << i) - 1;
+    // now check whether the calculated redundancy bit is same as the received one
+    if (str[k] == '1' && !error_bits[i]) {
+      error_index += (1 << i);
+    } else if (str[k] == '0' && error_bits[i]) {
+      error_index += (1 << i);
+    }
+  }
+
+  // cout << "error index: " << error_index << endl;
+  if(error_index != 0 && error_index <= n) {
+    str[error_index - 1] = (str[error_index - 1] == '1') ? '0' : '1';
+  }
+
+  // now remove the redundancy bits
+  string temp = "";
+  int k=0;
+  for (int i = 0; i < n; i++) {
+    if(i == ((1 << k) - 1)) {
+      k++;
+    } else {
+      temp += str[i];
+    }
+  }
+
+  return temp;
+}
+
 int main() {
   string str, generator_polynomial;
   int m;
@@ -366,6 +436,21 @@ int main() {
       }
     }
     cout << endl;
+  }
+  cout << endl;
+
+  vector<string> corrected_string_rowwise;
+  for(int i = 0; i < received_string_rowwise.size(); i++) {
+    corrected_string_rowwise.push_back(
+        correct_hamming_code(received_string_rowwise[i], m));
+  }
+
+  cout << "\ndata block after removing check bits:" << endl;
+  print_binary(corrected_string_rowwise);
+
+  cout << "\noutput frame: ";
+  for (int i = 0; i < corrected_string_rowwise.size(); i++) {
+    cout << binary_to_string(corrected_string_rowwise[i]);
   }
 
   cout << endl;
