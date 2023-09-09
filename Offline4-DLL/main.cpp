@@ -39,7 +39,7 @@ string binary_to_string(string binary) {
   for (int i = 0; i < binary.length(); i += 8) {
     int c = 0;
     for (int j = 0; j < 8; j++) {
-      c += (binary[i + j] - '0') * (1 << (7 - j));  // just simple weighted sum
+      c += (binary[i + j] - '0') * (1 << (7 - j)); // just simple weighted sum
     }
     str += (char)c;
   }
@@ -305,7 +305,6 @@ vector<string> check_and_remove_checksum(string received_string, string g,
   return received_string_rowwise;
 }
 
-
 string correct_hamming_code(string str, int m) {
   int r = number_of_redundancy_bits(m);
   int n = str.length();
@@ -320,7 +319,7 @@ string correct_hamming_code(string str, int m) {
     bool flag = false;
     for (int j = (1 << i) - 1; j < n; j += step * 2) {
       for (int k = 0; k < step; k++) {
-        if(!flag) { // avoiding the parity itself
+        if (!flag) { // avoiding the parity itself
           flag = true;
           continue;
         }
@@ -336,7 +335,8 @@ string correct_hamming_code(string str, int m) {
   int error_index = 0;
   for (int i = 0; i < r; i++) {
     int k = (1 << i) - 1;
-    // now check whether the calculated redundancy bit is same as the received one
+    // now check whether the calculated redundancy bit is same as the received
+    // one
     if (str[k] == '1' && !error_bits[i]) {
       error_index += (1 << i);
     } else if (str[k] == '0' && error_bits[i]) {
@@ -345,15 +345,15 @@ string correct_hamming_code(string str, int m) {
   }
 
   // cout << "error index: " << error_index << endl;
-  if(error_index != 0 && error_index <= n) {
+  if (error_index != 0 && error_index <= n) {
     str[error_index - 1] = (str[error_index - 1] == '1') ? '0' : '1';
   }
 
   // now remove the redundancy bits
   string temp = "";
-  int k=0;
+  int k = 0;
   for (int i = 0; i < n; i++) {
-    if(i == ((1 << k) - 1)) {
+    if (i == ((1 << k) - 1)) {
       k++;
     } else {
       temp += str[i];
@@ -425,9 +425,12 @@ int main() {
 
   cout << "\ndata block after removing CRC checksum bits:" << endl;
   int error_index = 0;
+  cout << received_string_rowwise.size() << ","
+       << received_string_rowwise[0].length() << endl;
   for (int i = 0; i < received_string_rowwise.size(); i++) {
     for (int j = 0; j < received_string_rowwise[i].length(); j++) {
-      if (error_indexes[error_index] / received_string_rowwise.size() == j &&
+      if (error_indexes.size() != 0 &&
+          error_indexes[error_index] / received_string_rowwise.size() == j &&
           error_indexes[error_index] % received_string_rowwise.size() == i) {
         cout << "\033[31m" << received_string_rowwise[i][j] << "\033[0m";
         error_index++;
@@ -440,7 +443,7 @@ int main() {
   cout << endl;
 
   vector<string> corrected_string_rowwise;
-  for(int i = 0; i < received_string_rowwise.size(); i++) {
+  for (int i = 0; i < received_string_rowwise.size(); i++) {
     corrected_string_rowwise.push_back(
         correct_hamming_code(received_string_rowwise[i], m));
   }
