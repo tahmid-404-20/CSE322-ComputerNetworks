@@ -109,24 +109,13 @@ string add_redundancy_bits(string binary, int m) {
     }
   }
 
-  // now calculate the redundancy bits
-  // for (int i = 0; i < r; i++) {
-  //     int redundancy_bit = 0;
-  //     for (int j = pow(2,i) - 1; j < redundant_binary.length(); j++) {
-  //         if (redundant_binary[j] == '1' && ((j + 1) & (1 << i)) != 0) {
-  //             redundancy_bit = (redundancy_bit + 1) % 2;
-  //         }
-  //     }
-  //     redundant_binary[pow(2, i) - 1] = redundancy_bit + '0';
-  // }
-
   for (int i = 0; i < r; i++) {
     int step =
         1 << i; // for r1, we go by 1 step, for r2, we go by 2 steps, etc.
 
     bool redundancy_bit = false;
     for (j = (1 << i) - 1; j < redundant_binary.length(); j += step * 2) {
-      for (int k = 0; k < step; k++) {
+      for (int k = 0; k < step && ((j + k) < redundant_binary.length()); k++) {
         if (redundant_binary[j + k] == '1') {
           redundancy_bit = !redundancy_bit;
         }
@@ -252,7 +241,7 @@ string add_and_print_checksum(string serialized_string, string g) {
   }
 
   // print serialized string with checksum, the checksum bits are in cyan blue
-  cout << "\ndata bits after appending CRC checksum <sent-frame>:" << endl;
+  cout << "\ndata bits after appending CRC checksum (sent frame):" << endl;
   for (int i = 0; i < n; i++) {
     if (i > n - l) {
       cout << "\033[34m" << serialized_string[i] << "\033[0m";
@@ -302,6 +291,8 @@ string check_and_remove_checksum(string received_string, string g) {
     cout << "error detected" << endl;
   }
 
+  cout << endl;
+
   // removing the checksum bits
   received_string =
       received_string.substr(0, received_string.length() - checksum.length());
@@ -313,25 +304,28 @@ string correct_hamming_code(string str, int m) {
   int r = number_of_redundancy_bits(m);
   int n = str.length();
 
-  bool error_bits[r] = {false};
+  bool error_bits[r];
   // now calculate the redundancy bits
   for (int i = 0; i < r; i++) {
+    error_bits[i] = false;
     int step =
         1 << i; // for r1, we go by 1 step, for r2, we go by 2 steps, etc.
 
     bool redundancy_bit = false;
     bool flag = false;
     for (int j = (1 << i) - 1; j < n; j += step * 2) {
-      for (int k = 0; k < step; k++) {
+      for (int k = 0; k < step && (j + k) < n; k++) {
         if (!flag) { // avoiding the parity itself
           flag = true;
           continue;
         }
+        // if(i==5) cout << str[j + k] << "";
         if (str[j + k] == '1') {
           redundancy_bit = !redundancy_bit;
         }
       }
     }
+    // if(i==5) cout << endl;
     // cout << "r" << i + 1 << ": " << redundancy_bit << endl;
     error_bits[i] = redundancy_bit;
   }
@@ -378,9 +372,8 @@ string sanitize_generator(string generator_polynomial) {
   return generator_polynomial;
 }
 
-
-
 int main() {
+  srand(1);
   string str, generator_polynomial;
   int m;
   double p;
@@ -388,10 +381,10 @@ int main() {
   cout << "enter data string: ";
   getline(cin, str);
 
-  cout << "enter number of data bytes in a row <m>: ";
+  cout << "enter number of data bytes in a row (m): ";
   cin >> m;
 
-  cout << "enter probability <p>: ";
+  cout << "enter probability (p): ";
   cin >> p;
 
   cout << "enter generator polynomial: ";
@@ -403,7 +396,7 @@ int main() {
   cout << "\ndata string after padding: " << padded_string << endl;
 
   vector<string> data_block = split_binary(string_to_binary(padded_string), m);
-  cout << "\ndata block <ascii code of m characters per row>: " << endl;
+  cout << "\ndata block (ascii code of m characters per row):" << endl;
   print_binary(data_block);
 
   vector<string> data_block_with_redundancy_bits =
@@ -441,9 +434,6 @@ int main() {
   string received_string_without_checksum =
       check_and_remove_checksum(received_string, generator_polynomial);
 
-
-  cout << received_string_without_checksum << endl;
-
   vector<string> received_string_rowwise =
       serialized_to_rowwise(received_string_without_checksum,
                             data_block_with_redundancy_bits[0].length());
@@ -455,12 +445,14 @@ int main() {
   // cout << endl;
 
   // simply printing the received string rowwise
-  cout << "\ndata block after removing CRC checksum bits:" << endl;
+  cout << "data block after removing CRC checksum bits:" << endl;
   int err_idx = 0;
   for (int i = 0; i < received_string_rowwise.size(); i++) {
     for (int j = 0; j < received_string_rowwise[i].length(); j++) {
       int target = j * received_string_rowwise.size() + i;
-      if (error_indexes.size() && find(error_indexes.begin(), error_indexes.end(), target) != error_indexes.end()) {
+      if (error_indexes.size() &&
+          find(error_indexes.begin(), error_indexes.end(), target) !=
+              error_indexes.end()) {
         cout << "\033[31m" << received_string_rowwise[i][j] << "\033[0m";
         err_idx++;
       } else {
@@ -477,7 +469,7 @@ int main() {
         correct_hamming_code(received_string_rowwise[i], m));
   }
 
-  cout << "\ndata block after removing check bits:" << endl;
+  cout << "data block after removing check bits:" << endl;
   print_binary(corrected_string_rowwise);
 
   cout << "\noutput frame: ";
