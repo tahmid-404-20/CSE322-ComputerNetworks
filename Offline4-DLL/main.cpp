@@ -2,6 +2,7 @@
 #include "iostream"
 #include "string"
 #include "vector"
+#include <algorithm>
 
 using namespace std;
 
@@ -265,8 +266,25 @@ string add_and_print_checksum(string serialized_string, string g) {
   return serialized_string;
 }
 
-vector<string> check_and_remove_checksum(string received_string, string g,
-                                         int row_length) {
+vector<string> serialized_to_rowwise(string received_string, int row_length) {
+  // received string was organized columnwise, now we need to organize it
+  // rowwise
+  vector<string> received_string_rowwise;
+  int rows = received_string.length() / row_length;
+
+  for (int i = 0; i < rows; i++) {
+    string temp = "";
+    received_string_rowwise.push_back(temp);
+  }
+
+  for (int i = 0; i < received_string.length(); i++) {
+    received_string_rowwise[i % rows] += received_string[i];
+  }
+
+  return received_string_rowwise;
+}
+
+string check_and_remove_checksum(string received_string, string g) {
   string checksum = verify_checksum(received_string, g);
 
   bool no_error = true;
@@ -288,21 +306,7 @@ vector<string> check_and_remove_checksum(string received_string, string g,
   received_string =
       received_string.substr(0, received_string.length() - checksum.length());
 
-  // received string was organized columnwise, now we need to organize it
-  // rowwise
-  vector<string> received_string_rowwise;
-  int rows = received_string.length() / row_length;
-
-  for (int i = 0; i < rows; i++) {
-    string temp = "";
-    received_string_rowwise.push_back(temp);
-  }
-
-  for (int i = 0; i < received_string.length(); i++) {
-    received_string_rowwise[i % rows] += received_string[i];
-  }
-
-  return received_string_rowwise;
+  return received_string;
 }
 
 string correct_hamming_code(string str, int m) {
@@ -363,6 +367,19 @@ string correct_hamming_code(string str, int m) {
   return temp;
 }
 
+// removes leading zeros
+string sanitize_generator(string generator_polynomial) {
+  int i = 0;
+  while (generator_polynomial[i] == '0') {
+    i++;
+  }
+  generator_polynomial = generator_polynomial.substr(i);
+
+  return generator_polynomial;
+}
+
+
+
 int main() {
   string str, generator_polynomial;
   int m;
@@ -380,8 +397,10 @@ int main() {
   cout << "enter generator polynomial: ";
   cin >> generator_polynomial;
 
+  generator_polynomial = sanitize_generator(generator_polynomial);
+
   string padded_string = pad_string(str, m);
-  cout << "\n\ndata string after padding: " << padded_string << endl;
+  cout << "\ndata string after padding: " << padded_string << endl;
 
   vector<string> data_block = split_binary(string_to_binary(padded_string), m);
   cout << "\ndata block <ascii code of m characters per row>: " << endl;
@@ -419,21 +438,31 @@ int main() {
 
   cout << endl;
 
-  vector<string> received_string_rowwise =
-      check_and_remove_checksum(received_string, generator_polynomial,
-                                data_block_with_redundancy_bits[0].length());
+  string received_string_without_checksum =
+      check_and_remove_checksum(received_string, generator_polynomial);
 
+
+  cout << received_string_without_checksum << endl;
+
+  vector<string> received_string_rowwise =
+      serialized_to_rowwise(received_string_without_checksum,
+                            data_block_with_redundancy_bits[0].length());
+
+  // cout << "error indexes: ";
+  // for (int i = 0; i < error_indexes.size(); i++) {
+  //   cout << error_indexes[i] << " ";
+  // }
+  // cout << endl;
+
+  // simply printing the received string rowwise
   cout << "\ndata block after removing CRC checksum bits:" << endl;
-  int error_index = 0;
-  cout << received_string_rowwise.size() << ","
-       << received_string_rowwise[0].length() << endl;
+  int err_idx = 0;
   for (int i = 0; i < received_string_rowwise.size(); i++) {
     for (int j = 0; j < received_string_rowwise[i].length(); j++) {
-      if (error_indexes.size() != 0 &&
-          error_indexes[error_index] / received_string_rowwise.size() == j &&
-          error_indexes[error_index] % received_string_rowwise.size() == i) {
+      int target = j * received_string_rowwise.size() + i;
+      if (error_indexes.size() && find(error_indexes.begin(), error_indexes.end(), target) != error_indexes.end()) {
         cout << "\033[31m" << received_string_rowwise[i][j] << "\033[0m";
-        error_index++;
+        err_idx++;
       } else {
         cout << received_string_rowwise[i][j];
       }
