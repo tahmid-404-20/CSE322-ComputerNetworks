@@ -1,0 +1,6 @@
+*.iml
+**/.idea
+**/out
+**/try2.pdf
+*.out
+**/.vscode
